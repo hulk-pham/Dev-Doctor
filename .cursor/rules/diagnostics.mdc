@@ -1,0 +1,23 @@
+---
+description: Diagnostic rules and safe fix constraints
+globs: src/diagnostics/**/*.ts,src-tauri/src/**/*.rs
+alwaysApply: false
+---
+
+# Diagnostics
+
+Rules return structured findings (`severity`, `explanation`, `evidence`, `recommendedAction`). They do not return formatted UI strings.
+
+- Compare `engines.node` with `semver`. If the range or version cannot be parsed, report `uncertain`. Do not invent a pass or fail.
+- Lockfiles: more than one package manager is a warning. Do not choose which installer to run.
+- Missing `node_modules` entries are a heuristic. Say so in the explanation.
+- Env checks compare names from `.env.example` or `.env.sample` with names in `.env`. Never return, log, or store values.
+- Git findings are read-only. No reset, clean, checkout, or discard.
+- Port checks may show process name and PID. Do not kill processes.
+- A fix command is an argv array with a timeout. Reject `..`, null bytes, and system roots. Installs run only under user or temp directories.
+
+Rust tests must keep using `fixtures/sample-node-app/.env` to prove the secret string never appears in the snapshot JSON.
+
+A new or changed rule gets a Vitest test next to it, or a `cargo test` next to the Rust parser. Run those tests before calling the change done.
+
+# Notes

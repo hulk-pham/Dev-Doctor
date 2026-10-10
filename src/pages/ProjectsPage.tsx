@@ -16,10 +16,7 @@ export function ProjectsPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">Projects</h1>
-          <p className="text-sm text-muted">Health for the folder you selected.</p>
-        </div>
+        <p className="text-sm text-muted">Health for the folder you selected.</p>
         <Button variant="secondary" onClick={() => void state.chooseFolder()}>
           <FolderOpen size={15} />
           Select folder

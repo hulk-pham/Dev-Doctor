@@ -7,14 +7,11 @@ export function HistoryPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">History</h1>
-        <p className="text-sm text-muted">
+      <p className="text-sm text-muted">
           {dataDirectory
             ? `Scan summaries are stored locally in ${dataDirectory}.`
             : "Scan summaries are stored in the desktop app's local data folder."}
-        </p>
-      </div>
+      </p>
       {history.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-panel px-5 py-10 text-center text-sm text-muted">
           No scans have been saved yet.

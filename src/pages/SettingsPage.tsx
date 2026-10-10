@@ -15,10 +15,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <p className="text-sm text-muted">Preferences stay on this Mac. Dev Doctor does not send telemetry.</p>
-      </div>
+      <p className="text-sm text-muted">Preferences stay on this Mac. Dev Doctor does not send telemetry.</p>
 
       <section className="rounded-xl border border-border bg-panel p-4">
         <h2 className="text-sm font-medium">Theme</h2>

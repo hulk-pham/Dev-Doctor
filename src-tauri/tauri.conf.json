@@ -13,6 +13,12 @@
     "windows": [
       {
         "title": "Dev Doctor",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 12,
+          "y": 13
+        },
         "width": 1120,
         "height": 760,
         "minWidth": 860,

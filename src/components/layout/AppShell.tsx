@@ -1,6 +1,7 @@
-import { Clock, FolderGit2, ScanSearch, Settings, Stethoscope } from "lucide-react";
-import type { ReactNode } from "react";
-import { basename, cn, formatWhen } from "../../lib/utils";
+import { Clock, FolderGit2, PanelLeft, ScanSearch, Settings, Stethoscope } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { cn } from "../../lib/utils";
+import { windowChrome, type ChromeButton } from "../../services/tauri";
 import { useAppState, type View } from "../../state/AppState";
 import { DiagnosticsPage } from "../../pages/DiagnosticsPage";
 import { HistoryPage } from "../../pages/HistoryPage";
@@ -16,22 +17,56 @@ const NAV: Array<{ id: View; label: string; icon: typeof ScanSearch }> = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-const TITLES: Record<View, string> = {
-  overview: "Overview",
-  projects: "Projects",
-  diagnostics: "Diagnostics",
-  history: "History",
-  settings: "Settings",
-};
-
 export function AppShell() {
   const state = useAppState();
-  const title = TITLES[state.view];
-  const projectLabel = state.scan?.project.name ?? (state.projectPath ? basename(state.projectPath) : "No project");
+  const [menuExpanded, setMenuExpanded] = useState(false);
+  const [buttons, setButtons] = useState<ChromeButton[]>([]);
+
+  const zoom = buttons.find((button) => button.name === "zoom");
+  const headerHeight = zoom ? zoom.y * 2 + zoom.height : 40;
+  const toggleStyle = zoom
+    ? {
+        left: zoom.x + zoom.width + 14,
+        top: zoom.y,
+        width: zoom.height,
+        height: zoom.height,
+      }
+    : { left: 80, top: 7, width: 16, height: 16 };
+
+  useEffect(() => {
+    if (!state.desktop) return;
+    const read = () => {
+      void windowChrome()
+        .then((chrome) => setButtons(chrome.buttons))
+        .catch(() => setButtons([]));
+    };
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, [state.desktop]);
 
   return (
-    <div className="flex h-full bg-sidebar text-text">
-      <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2">
+    <div className="flex h-full flex-col bg-sidebar text-text">
+      <header data-tauri-drag-region="deep" className="relative shrink-0" style={{ height: headerHeight }}>
+        <button
+          type="button"
+          title={menuExpanded ? "Collapse menu" : "Expand menu"}
+          aria-pressed={menuExpanded}
+          onClick={() => setMenuExpanded((open) => !open)}
+          style={toggleStyle}
+          className="absolute z-10 flex items-center justify-center text-muted hover:text-text"
+        >
+          <PanelLeft size={14} strokeWidth={1.75} />
+        </button>
+      </header>
+
+      <div className="flex min-h-0 flex-1">
+      <nav
+        className={cn(
+          "flex shrink-0 flex-col gap-1 border-r border-border py-1",
+          menuExpanded ? "w-52 items-stretch px-2" : "w-12 items-center",
+        )}
+      >
         {NAV.map((item) => {
           const Icon = item.icon;
           const active = state.view === item.id;
@@ -42,87 +77,19 @@ export function AppShell() {
               title={item.label}
               onClick={() => state.setView(item.id)}
               className={cn(
-                "flex h-10 w-10 items-center justify-center border-l-2",
-                active ? "border-accent text-text" : "border-transparent text-muted hover:text-text",
+                "flex h-10 items-center rounded-md",
+                menuExpanded ? "w-full justify-start gap-3 px-2" : "w-10 justify-center",
+                active ? "bg-active text-text" : "text-muted hover:bg-hover hover:text-text",
               )}
             >
-              <Icon size={22} strokeWidth={1.5} />
+              <Icon size={22} strokeWidth={1.5} className="shrink-0" />
+              {menuExpanded ? <span className="truncate text-[13px]">{item.label}</span> : null}
             </button>
           );
         })}
       </nav>
 
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border md:flex">
-        <div className="flex h-[35px] items-center px-3 text-[11px] font-medium tracking-wide text-muted">DEV DOCTOR</div>
-        <button
-          type="button"
-          onClick={() => void state.chooseFolder()}
-          className="mx-2 truncate rounded-sm px-2 py-1 text-left text-[13px] hover:bg-hover"
-        >
-          {projectLabel}
-        </button>
-        <div className="mx-2 mt-1 flex gap-1">
-          <button
-            type="button"
-            disabled={state.scanning}
-            onClick={() => void state.scanCurrent()}
-            className="rounded-sm px-2 py-1 text-[12px] text-muted hover:bg-hover hover:text-text disabled:opacity-50"
-          >
-            {state.scanning ? "Scanning…" : "Scan"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void state.chooseFolder()}
-            className="rounded-sm px-2 py-1 text-[12px] text-muted hover:bg-hover hover:text-text"
-          >
-            Open folder
-          </button>
-        </div>
-        <div className="mt-3 px-4 text-[11px] font-medium tracking-wide text-muted">VIEWS</div>
-        <div className="mt-1">
-          {NAV.map((item) => {
-            const active = state.view === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => state.setView(item.id)}
-                className={cn(
-                  "flex h-7 w-full items-center px-4 text-left text-[13px]",
-                  active ? "bg-active text-text" : "text-muted hover:bg-hover hover:text-text",
-                )}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-4 px-4 text-[11px] font-medium tracking-wide text-muted">RECENT</div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {state.history.length === 0 ? (
-            <p className="px-4 py-2 text-[12px] text-muted">No scans yet</p>
-          ) : (
-            state.history.slice(0, 8).map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => state.openHistoryEntry(entry)}
-                className="flex w-full flex-col px-4 py-1.5 text-left hover:bg-hover"
-              >
-                <span className="truncate text-[13px]">{entry.projectName}</span>
-                <span className="truncate text-[11px] text-muted">
-                  {formatWhen(entry.scannedAt)} · {entry.errorCount} errors
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-      </aside>
-
       <div className="flex min-w-0 flex-1 flex-col bg-panel">
-        <div className="flex h-[35px] shrink-0 items-end border-b border-border bg-sidebar">
-          <div className="flex h-full items-center border-r border-border bg-panel px-3 text-[13px]">{title}</div>
-        </div>
         {!state.desktop ? (
           <div className="border-b border-border px-4 py-1.5 text-[12px] text-warning">
             This browser preview cannot read local projects. Use the Dev Doctor desktop window.
@@ -133,18 +100,20 @@ export function AppShell() {
         ) : null}
         <div className="flex min-h-0 flex-1">
           <main className="min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-3xl px-8 py-6">
+            <div className="w-full px-8 py-6">
               <Page />
             </div>
           </main>
           <Inspector />
         </div>
-        <footer className="flex h-[22px] shrink-0 items-center gap-3 border-t border-border bg-sidebar px-2 text-[11px] text-muted">
-          <span>{state.scanning ? "Scanning" : state.scan ? state.scan.health : "Ready"}</span>
-          <span className="min-w-0 flex-1 truncate">{state.projectPath ?? "No folder"}</span>
-          <span>v{state.appVersion}</span>
-        </footer>
       </div>
+      </div>
+
+      <footer className="flex h-[22px] shrink-0 items-center gap-3 border-t border-border bg-sidebar px-2 text-[11px] text-muted">
+        <span>{state.scanning ? "Scanning" : state.scan ? state.scan.health : "Ready"}</span>
+        <span className="min-w-0 flex-1 truncate">{state.projectPath ?? "No folder"}</span>
+        <span>v{state.appVersion}</span>
+      </footer>
 
       {state.toast ? (
         <div className="fixed bottom-8 right-3 border border-border bg-panel px-3 py-1.5 text-[12px]">{state.toast}</div>
@@ -162,7 +131,7 @@ function Inspector() {
   const { scan } = useAppState();
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-l border-border bg-sidebar xl:flex">
-      <div className="flex h-[35px] items-center px-3 text-[11px] font-medium tracking-wide text-muted">OUTLINE</div>
+      <div className="px-3 pt-3 pb-2 text-[11px] font-medium tracking-wide text-muted">OUTLINE</div>
       {scan ? (
         <dl className="space-y-3 px-3 py-1 text-[12px]">
           <Row label="Project" value={scan.project.name} />

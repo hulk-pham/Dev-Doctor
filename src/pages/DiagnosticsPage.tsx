@@ -64,10 +64,7 @@ export function DiagnosticsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">Diagnostics</h1>
-        <p className="text-sm text-muted">Findings stay grouped by the part of the environment they describe.</p>
-      </div>
+      <p className="text-sm text-muted">Findings stay grouped by the part of the environment they describe.</p>
 
       {state.scanOrigin === "history" && state.scan ? (
         <p className="rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm text-muted">

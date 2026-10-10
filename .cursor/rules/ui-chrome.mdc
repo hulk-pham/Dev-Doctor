@@ -1,0 +1,30 @@
+---
+description: Dev Doctor window chrome and navigation style
+globs: src/**/*.tsx,src-tauri/tauri.conf.json
+alwaysApply: false
+---
+
+# UI chrome
+
+Match a code editor, not an admin dashboard. 13px type, 1px borders, no gradients, no tab that names the current page.
+
+Layout, top to bottom:
+
+1. Title row. Native traffic lights plus the menu toggle. Drag with `data-tauri-drag-region="deep"`. A `button` is not a drag target.
+2. One nav column. Collapsed: icons only, `w-12`. Expanded: the same items show icon and label in that column (`w-52`). Do not add a second menu panel or a Recent list there.
+3. Main content. Do not repeat the menu name as a heading (no "Projects" / "Diagnostics" title whose only job is to say which item is selected).
+4. Status bar.
+
+Window: `titleBarStyle: Overlay`, `hiddenTitle: true`. Dragging needs `core:window:allow-start-dragging`.
+
+Place the toggle from `window_chrome`, not a guessed offset. These numbers are the regression case:
+
+- `top` and `height` match the green zoom button.
+- Padding above the row equals padding below: `headerHeight = zoom.y * 2 + zoom.height`.
+- `left = zoom.x + zoom.width + 14`. Do not pull the toggle flush against the green button.
+
+Product name shown to macOS is `Dev Doctor` (`productName` and `NSProcessInfo.setProcessName` in `src-tauri/src/main.rs`).
+
+# Notes
+
+- 2026-10-10: Expanded menu is the icon column growing to show labels. A second panel with a section title and a Recent list was removed as useless.

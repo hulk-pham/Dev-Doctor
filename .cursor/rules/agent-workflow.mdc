@@ -1,0 +1,35 @@
+---
+description: Test finished work and record lessons for the next task
+alwaysApply: true
+---
+
+# Finish the loop
+
+A feature is not done until the checks below have actually run.
+
+Logic (`src/diagnostics`, `src-tauri/src`): add or update a unit test in the same change. Run `npm test` for TypeScript and `cargo test --manifest-path src-tauri/Cargo.toml` for Rust. Run `npm run typecheck` if types changed.
+
+UI (`src/components`, `src/pages`, `src-tauri/tauri.conf.json`): with `npm run tauri dev` already up, drive the desktop window through the MCP bridge in `.cursor/rules/debug-harness.mdc`. Screenshot, read the image, and exercise the control that changed (click, toggle, type). Do not treat `localhost:1420` in a browser as that test.
+
+If a check fails, fix it and run the check again before reporting success.
+
+Report done with evidence, not a claim:
+
+```text
+Logic: <command> — <pass count or failure>
+UI: drove <control> via MCP. Screenshot: <path>. Measured: <numbers that must hold>
+```
+
+Chrome spacing is a fixed case. Re-read it from MCP after every title-row change. The menu toggle matches the green button's `y` and `height`. `headerHeight = zoom.y * 2 + zoom.height`. `left = zoom.x + zoom.width + 14`.
+
+Stop a UI loop when two screenshots show the same measurements. Ask instead of nudging by eye.
+
+Do not force-push `main`. Do not run `npm install` or `pnpm install` in a real user project. Those wait for an explicit yes in the chat. The in-app install fix still requires its own confirm dialog.
+
+# Notes for the next task
+
+When this task teaches a constraint that is not already in a rule, append one dated bullet to that rule's `Notes` section. Record a rejected approach, a measured value, or a missing tool. Do not add a note that repeats an existing bullet, and do not paste a transcript.
+
+```markdown
+- 2026-10-10: Example of a new constraint.
+```

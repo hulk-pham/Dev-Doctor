@@ -1,3 +1,4 @@
+mod chrome;
 mod history;
 mod probe;
 mod security;
@@ -60,6 +61,11 @@ fn app_metadata(app: tauri::AppHandle) -> Result<AppMetadata, String> {
 }
 
 #[tauri::command]
+fn window_chrome(window: tauri::WebviewWindow) -> Result<chrome::WindowChrome, String> {
+    chrome::measure(window)
+}
+
+#[tauri::command]
 fn sample_fixture_path() -> Option<String> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/sample-node-app");
     let canonical = path.canonicalize().ok()?;
@@ -70,9 +76,20 @@ fn sample_fixture_path() -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(
+            tauri_plugin_mcp_bridge::Builder::new()
+                .bind_address("127.0.0.1")
+                .build(),
+        );
+    }
+
+    builder
         .invoke_handler(tauri::generate_handler![
             collect_snapshot,
             inspect_port,
@@ -81,6 +98,7 @@ pub fn run() {
             load_history,
             save_history,
             app_metadata,
+            window_chrome,
             sample_fixture_path
         ])
         .run(tauri::generate_context!())

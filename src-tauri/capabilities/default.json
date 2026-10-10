@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Capability for the main window. Shell access stays inside Rust commands.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "dialog:default",
+    "mcp-bridge:default"
+  ]
 }

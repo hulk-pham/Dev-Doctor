@@ -38,3 +38,20 @@ export function appMetadata(): Promise<AppMetadata> {
 export function sampleFixturePath(): Promise<string | null> {
   return invoke("sample_fixture_path");
 }
+
+export interface ChromeButton {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface WindowChrome {
+  buttons: ChromeButton[];
+  contentHeight: number;
+}
+
+export function windowChrome(): Promise<WindowChrome> {
+  return invoke("window_chrome");
+}

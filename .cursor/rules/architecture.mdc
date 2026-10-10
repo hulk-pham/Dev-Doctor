@@ -1,0 +1,19 @@
+---
+description: Dev Doctor architecture and system boundaries
+alwaysApply: true
+---
+
+# Architecture
+
+Local-first macOS diagnostics app. Tauri 2 owns the machine. React renders findings. Do not upload project data or add telemetry.
+
+- UI: `src/pages`, `src/components`. Shell is `src/components/layout/AppShell.tsx`.
+- Domain types: `src/domain/types.ts`.
+- Diagnostic rules: `src/diagnostics`. Pure functions over a `ProjectSnapshot`. One failed rule must not fail the scan.
+- Rust snapshot and allowlist: `src-tauri/src/{snapshot,security,probe,chrome}.rs`. Commands in `src-tauri/src/lib.rs`.
+- Frontend calls only those commands via `src/services/tauri.ts`. Never pass a shell string from the UI.
+- History is JSON in the app data dir. `.env` values are dropped in Rust before the snapshot exists.
+- Executable fixes are only `npm install --ignore-scripts` and `pnpm install --ignore-scripts`, after an explicit confirm dialog. Copy and open-docs actions do not run commands.
+- Sample project: `fixtures/sample-node-app`. It is labeled sample data. Do not invent scan results when a real scan is available.
+
+Verify with `npm test`, `npm run typecheck`, and `cargo test --manifest-path src-tauri/Cargo.toml`.
