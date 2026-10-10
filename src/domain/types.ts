@@ -89,6 +89,16 @@ export interface ScanHistoryEntry {
   findings: DiagnosticFinding[];
   meta: ProjectMeta;
   projectType: string;
+  artifactListedBytes?: number | null;
+}
+
+export interface CleanupHistoryEntry {
+  id: string;
+  projectPath: string;
+  projectName: string;
+  cleanedAt: string;
+  reclaimedBytes: number;
+  paths: string[];
 }
 
 export interface ToolProbe {

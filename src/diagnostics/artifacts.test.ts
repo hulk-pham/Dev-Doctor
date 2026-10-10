@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyArtifact } from "./artifacts";
+import { canDeleteArtifact, classifyArtifact } from "./artifacts";
 
 const base = {
   relativePath: "dist",
@@ -15,6 +15,15 @@ const base = {
 };
 
 describe("classifyArtifact", () => {
+  it("allows deletion only for confirmed generated or reproducible directories", () => {
+    const generated = classifyArtifact(base);
+    const uncertain = classifyArtifact({ ...base, name: "target", relativePath: "target", markers: [] });
+    const branch = classifyArtifact({ ...base, kind: "branch", name: "old", relativePath: "old", bytes: null });
+    expect(generated && canDeleteArtifact(generated)).toBe(true);
+    expect(uncertain && canDeleteArtifact(uncertain)).toBe(false);
+    expect(branch && canDeleteArtifact(branch)).toBe(false);
+  });
+
   it("treats dist as generated build output", () => {
     const item = classifyArtifact(base);
     expect(item?.safety).toBe("generated");

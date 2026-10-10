@@ -8,6 +8,14 @@ alwaysApply: false
 
 Match a code editor, not an admin dashboard. 13px type, 1px borders, no gradients, no tab that names the current page.
 
+Toolbars and controls: **`ui-kit.mdc`** / **`docs/product/ui-kit.md`**. This file covers shell layout only (title row, nav column, inspector).
+
+Form controls must use app tokens (`Button`, `FilterChip`, styled `input`). **Do not use native `<select>`** — on macOS WKWebView it ignores Tailwind and looks like a system widget from another era.
+
+Vertical rhythm: **`src/lib/ui-layout.ts`** + spacing table in `design-principles.md`. Workspace tab panels use `pt-3` + `space-y-3`; banners use `insetBar`; sticky footers use `stickyFooter` without `-mx-*`.
+
+**Project chrome:** only `ProjectChromeBar` in AppShell (`h-12`, `projectChromeRow`). Never add a second project header in page content — that causes nav jump between Workspace and Processes.
+
 Layout, top to bottom:
 
 1. Title row. Native traffic lights plus the menu toggle. Drag with `data-tauri-drag-region="deep"`. A `button` is not a drag target.
@@ -27,7 +35,7 @@ Product name shown to macOS is `Dev Doctor` (`productName` and `NSProcessInfo.se
 
 # Notes
 
-- 2026-10-10: Expanded menu is the icon column growing to show labels. A second panel with a section title and a Recent list was removed as useless.
-- 2026-10-10: Workspace is a dashboard of two cards. Scan Project runs diagnostics and artifact measurement together. Project info sits in a collapsible panel on the right.
-- 2026-10-10: The bottom status bar was removed. Settings stays at the bottom of the nav column. Version is only on the Settings page.
-- 2026-10-10: The project-info toggle sits on the title row, 12px from the right edge, with the same top and size as the left menu toggle. The right panel has no close control of its own.
+- 2026-10-10: Expanded menu = icon column widens to labels; no second panel.
+- 2026-10-10: Inspector toggle on title row, 12px from right; same size/`y` as menu toggle; panel has no close button.
+- 2026-10-10: No status bar; Settings last in nav; version only on Settings page.
+- 2026-10-11: Agent rules consolidated — `dev-doctor.mdc` + `AGENTS.md` index; product/process IA in `design-principles.md`.

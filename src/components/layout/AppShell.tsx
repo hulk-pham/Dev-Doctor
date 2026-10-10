@@ -1,8 +1,10 @@
-import { FolderGit2, LayoutDashboard, PanelLeft, PanelRight, Settings } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Activity, FolderGit2, LayoutDashboard, PanelLeft, PanelRight, Settings } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
+import { ProjectChromeBar } from "./ProjectChromeBar";
 import { windowChrome, type ChromeButton } from "../../services/tauri";
 import { useAppState, type View } from "../../state/AppState";
+import { ProcessesPage } from "../../pages/ProcessesPage";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { SettingsPage } from "../../pages/SettingsPage";
 import { ProjectInspector, WorkspacePage } from "../../pages/WorkspacePage";
@@ -10,6 +12,7 @@ import { ProjectInspector, WorkspacePage } from "../../pages/WorkspacePage";
 const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
   { id: "workspace", label: "Workspace", icon: LayoutDashboard },
   { id: "projects", label: "Projects", icon: FolderGit2 },
+  { id: "processes", label: "Processes", icon: Activity },
 ];
 
 export function AppShell() {
@@ -30,6 +33,14 @@ export function AppShell() {
   const inspectorToggleStyle = zoom
     ? { right: 12, top: zoom.y, width: zoom.height, height: zoom.height }
     : { right: 12, top: 7, width: 16, height: 16 };
+
+  const lastView = useRef(state.view);
+  useEffect(() => {
+    if (state.view === "processes" && lastView.current !== "processes") {
+      state.setInspectorOpen(false);
+    }
+    lastView.current = state.view;
+  }, [state.view, state]);
 
   useEffect(() => {
     if (!state.desktop) return;
@@ -96,8 +107,9 @@ export function AppShell() {
         {state.scanError ? (
           <div className="border-b border-border px-4 py-1.5 text-[12px] text-danger">{state.scanError}</div>
         ) : null}
+        <ProjectChromeBar />
         <main className="min-h-0 flex-1 overflow-y-auto">
-          <div className="w-full px-8 py-6">
+          <div className="w-full px-5 py-4">
             <Page />
           </div>
         </main>
@@ -162,6 +174,7 @@ function NavButton({
 function Page(): ReactNode {
   const { view } = useAppState();
   if (view === "projects") return <ProjectsPage />;
+  if (view === "processes") return <ProcessesPage />;
   if (view === "settings") return <SettingsPage />;
   return <WorkspacePage />;
 }

@@ -1,0 +1,73 @@
+---
+description: Dev Doctor — start here (handoff, architecture, ship loop, product invariants)
+alwaysApply: true
+---
+
+# Dev Doctor agent brief
+
+## 1. Start every chat
+
+1. Read **`docs/handoff.md`** — current product state. Do not re-derive from git or old chats.
+2. **One task per chat.** No milestone + layout pass + commit unless the user asked.
+3. End of task: update **`docs/handoff.md`** (few lines: changed, uncommitted, next). No transcript.
+
+Use **`fixtures/sample-node-app`** or a temp dir — never scan a large user folder to prove a change.
+
+## 2. Architecture (boundaries)
+
+Local-first macOS. **Tauri 2** owns the machine; **React** renders findings. No telemetry, no upload of project data.
+
+| Layer | Where |
+| --- | --- |
+| UI | `src/pages`, `src/components`, shell `AppShell.tsx` |
+| Types | `src/domain/types.ts` |
+| Rules | `src/diagnostics` — pure over `ProjectSnapshot`; one failed rule must not fail the scan |
+| Rust | `src-tauri/src/{snapshot,security,probe,chrome,…}.rs`, commands `lib.rs` |
+| IPC | **`src/services/tauri.ts` only** — never pass a shell string from the UI |
+
+History: JSON in app data dir. **`.env` values dropped in Rust** before snapshot. Executable fixes: only `npm|pnpm install --ignore-scripts` after in-app confirm. **`fixtures/sample-node-app` is for tests/agents only** — no sample entry in UI.
+
+## 3. Ship loop (feature not done until run)
+
+| Change | Do |
+| --- | --- |
+| Logic (`diagnostics`, `src-tauri`) | Unit test in same change → `npm test` / `cargo test --manifest-path src-tauri/Cargo.toml` |
+| Types | + `npm run typecheck` |
+| UI (`components`, `pages`, `tauri.conf.json`) | `npm run tauri dev` + **MCP bridge** (not browser on :1420) → see **`debug-harness.mdc`** |
+
+Report with evidence:
+
+```text
+Logic: <command> — pass/fail
+UI: MCP <control>. Screenshot: <path>. Measured: <if chrome>
+```
+
+MCP: one pass on the control that changed; stop if two screenshots match. No force-push `main`. No `npm/pnpm install` in a real user project without explicit yes in chat.
+
+**New constraint?** One dated bullet in the relevant rule's **Notes** (no duplicates). Title-row chrome: `left = zoom.x + zoom.width + 14`, toggle `y`/`height` = green button — **`ui-chrome.mdc`**.
+
+## 4. Product invariants (UI / IA / copy)
+
+Full journeys + spacing + control kit: **`docs/product/design-principles.md`**. Known debt: skim **`docs/product/ux-review.md`**; move fixes to **Fixed**.
+
+Before code (mental or handoff): **user question** (one sentence), **journey row**, **scope** (project / machine / history), **one primary action** per region, **no silent sidebar jumps**.
+
+- **One view, one question** — no twin entry points (e.g. port lookup on Diagnostics → Processes highlight; **no port search on Processes**).
+- **UI consistency** — **`ui-kit.mdc`** + **`docs/product/ui-kit.md`** + `screen-toolbar.tsx`; scope = `SegmentedFilter`; toolbar actions = icons; section nav = underline tabs only.
+- **Facts on the row** — one toolbar row; at most **one bordered list**; **no native `<select>`**.
+- **Project chrome** — only **`ProjectChromeBar`** in shell (`h-12`); never duplicate selector in a page.
+- **Pause** auto-refresh lists when the user reads rows. Ask **one** focused question on IA forks — not on what `ui-chrome.mdc` already fixes.
+
+Product checklist (journeys, affordances): **`product-design.mdc`**.
+
+## 5. Read when (do not load all up front)
+
+| You are… | Open |
+| --- | --- |
+| Any UI control or layout | **`ui-kit.mdc`** |
+| Changing title row / nav column | `ui-chrome.mdc` |
+| Diagnostic rules / Rust parsers | `diagnostics.mdc` |
+| MCP commands & WKWebView limits | `debug-harness.mdc` |
+| Finish-loop detail & git habits | `agent-workflow.mdc` |
+
+**Index:** `AGENTS.md`.

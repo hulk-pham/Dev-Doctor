@@ -13,17 +13,18 @@ import {
   type ReactNode,
 } from "react";
 import { prependHistory, scanFromHistory, toHistoryEntry } from "../domain/history";
-import type { FixExecutionResult, FixSuggestion, PortInspection, ScanHistoryEntry, ScanResult } from "../domain/types";
+import type { CleanupHistoryEntry, FixExecutionResult, FixSuggestion, PortInspection, ScanHistoryEntry, ScanResult } from "../domain/types";
 import { classifyArtifacts, type ArtifactFinding } from "../diagnostics/artifacts";
 import { buildScanResult } from "../diagnostics/engine";
 import { validateFixRequest, validateProjectPath } from "../diagnostics/paths";
 import { validatePort } from "../diagnostics/ports";
 import { errorMessage } from "../lib/utils";
-import { appMetadata, collectSnapshot, executeFix, inspectPort, loadHistory, openAllowedUrl, sampleFixturePath, saveHistory, scanArtifacts, type ArtifactScanProgress } from "../services/tauri";
+import { appMetadata, collectSnapshot, deleteArtifacts, executeFix, inspectPort, loadCleanupHistory, loadHistory, openAllowedUrl, saveCleanupHistory, saveHistory, scanArtifacts, type ArtifactScanProgress } from "../services/tauri";
 import { applyTheme, readSettings, writeSettings, type Settings } from "./settings";
 
-export type View = "workspace" | "projects" | "settings";
+export type View = "workspace" | "projects" | "processes" | "settings";
 export type WorkspaceTab = "dashboard" | "diagnostics" | "cleanup";
+export type DiagnosticsFocus = "all" | "error" | "warning" | "pass";
 
 interface AppStateValue {
   view: View;
@@ -44,6 +45,7 @@ interface AppStateValue {
   scan: ScanResult | null;
   scanOrigin: "live" | "history" | null;
   history: ScanHistoryEntry[];
+  cleanupHistory: CleanupHistoryEntry[];
   scanning: boolean;
   scanError: string | null;
   dragging: boolean;
@@ -51,21 +53,32 @@ interface AppStateValue {
   updateSettings: (settings: Settings) => void;
   dataDirectory: string | null;
   appVersion: string;
-  samplePath: string | null;
   portResult: PortInspection | null;
   inspectingPort: boolean;
   toast: string | null;
   chooseFolder: () => Promise<void>;
   scanCurrent: () => Promise<void>;
-  openSample: () => Promise<void>;
   openHistoryEntry: (entry: ScanHistoryEntry) => void;
-  inspectPortNumber: (value: string) => Promise<void>;
+  inspectPortNumber: (value: string, options?: { openDiagnostics?: boolean }) => Promise<PortInspection | null>;
+  diagnosticsFocus: DiagnosticsFocus;
+  processesPortQuery: string | null;
+  openDiagnosticsTab: (focus?: DiagnosticsFocus) => void;
+  openProcessesFindPort: (port: string) => void;
+  openProjectInWorkspace: (projectPath: string) => void;
+  clearProcessesPortQuery: () => void;
   copyText: (text: string, message?: string) => Promise<void>;
   openDocs: (url: string) => Promise<void>;
   runConfirmedFix: (suggestion: FixSuggestion) => Promise<FixExecutionResult>;
+  removeArtifacts: (relativePaths: string[]) => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
+
+function isCleanupEntry(value: unknown): value is CleanupHistoryEntry {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Partial<CleanupHistoryEntry>;
+  return typeof entry.id === "string" && typeof entry.projectPath === "string" && Array.isArray(entry.paths);
+}
 
 function isHistoryEntry(value: unknown): value is ScanHistoryEntry {
   if (!value || typeof value !== "object") return false;
@@ -76,7 +89,7 @@ function isHistoryEntry(value: unknown): value is ScanHistoryEntry {
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<View>("workspace");
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("dashboard");
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [cleanupListedBytes, setCleanupListedBytes] = useState<number | null>(null);
   const [artifactFindings, setArtifactFindings] = useState<ArtifactFinding[]>([]);
   const [artifactWarnings, setArtifactWarnings] = useState<string[]>([]);
@@ -87,16 +100,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [scanOrigin, setScanOrigin] = useState<"live" | "history" | null>(null);
   const [history, setHistory] = useState<ScanHistoryEntry[]>([]);
+  const [cleanupHistory, setCleanupHistory] = useState<CleanupHistoryEntry[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => readSettings());
   const [dataDirectory, setDataDirectory] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState("0.1.0");
-  const [samplePath, setSamplePath] = useState<string | null>(null);
   const [portResult, setPortResult] = useState<PortInspection | null>(null);
   const [inspectingPort, setInspectingPort] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [diagnosticsFocus, setDiagnosticsFocus] = useState<DiagnosticsFocus>("all");
+  const [processesPortQuery, setProcessesPortQuery] = useState<string | null>(null);
   const desktop = isTauri();
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -154,9 +169,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           collectSnapshot(check.path),
           scanArtifacts(check.path),
         ]);
+        let listedBytes: number | null = null;
+        if (artifactOutcome.status === "fulfilled") {
+          const listed = classifyArtifacts(artifactOutcome.value.artifacts);
+          listedBytes = listed.reduce((sum, row) => sum + (row.countsInTotal ? (row.bytes ?? 0) : 0), 0);
+          setArtifactFindings(listed);
+          setArtifactWarnings(artifactOutcome.value.warnings);
+          setCleanupListedBytes(listedBytes);
+        } else {
+          setArtifactError(errorMessage(artifactOutcome.reason));
+        }
         if (snapshotOutcome.status === "fulfilled") {
           const result = buildScanResult(snapshotOutcome.value);
-          const nextHistory = prependHistory(historyRef.current, toHistoryEntry(result));
+          const nextHistory = prependHistory(historyRef.current, toHistoryEntry(result, listedBytes));
           historyRef.current = nextHistory;
           setScan(result);
           setScanOrigin("live");
@@ -168,14 +193,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           }
         } else {
           setScanError(errorMessage(snapshotOutcome.reason));
-        }
-        if (artifactOutcome.status === "fulfilled") {
-          const listed = classifyArtifacts(artifactOutcome.value.artifacts);
-          setArtifactFindings(listed);
-          setArtifactWarnings(artifactOutcome.value.warnings);
-          setCleanupListedBytes(listed.reduce((sum, row) => sum + (row.countsInTotal ? (row.bytes ?? 0) : 0), 0));
-        } else {
-          setArtifactError(errorMessage(artifactOutcome.reason));
         }
       } finally {
         const remaining = 3000 - (Date.now() - startedAt);
@@ -236,46 +253,112 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await scanPath(projectPath);
   }, [desktop, projectPath, scanPath]);
 
-  const openSample = useCallback(async () => {
-    if (!samplePath) {
-      setScanError("The sample project is only available in a development checkout.");
-      return;
-    }
-    await scanPath(samplePath);
-  }, [samplePath, scanPath]);
+  const openDiagnosticsTab = useCallback((focus: DiagnosticsFocus = "all") => {
+    setDiagnosticsFocus(focus);
+    setView("workspace");
+    setWorkspaceTab("diagnostics");
+  }, []);
+
+  const openProcessesFindPort = useCallback((port: string) => {
+    setProcessesPortQuery(port.trim());
+    setView("processes");
+  }, []);
+
+  const clearProcessesPortQuery = useCallback(() => setProcessesPortQuery(null), []);
 
   const openHistoryEntry = useCallback((entry: ScanHistoryEntry) => {
     setProjectPath(entry.projectPath);
     setScan(scanFromHistory(entry));
     setScanOrigin("history");
     setScanError(null);
-    setCleanupListedBytes(null);
     setArtifactFindings([]);
     setArtifactWarnings([]);
     setArtifactError(null);
+    setCleanupListedBytes(typeof entry.artifactListedBytes === "number" ? entry.artifactListedBytes : null);
     setView("workspace");
     setWorkspaceTab("dashboard");
   }, []);
 
-  const inspectPortNumber = useCallback(
-    async (value: string) => {
-      const check = validatePort(value);
+  const openProjectInWorkspace = useCallback(
+    (path: string) => {
+      const entry = historyRef.current.find((item) => item.projectPath === path);
+      if (entry) {
+        openHistoryEntry(entry);
+        return;
+      }
+      const check = validateProjectPath(path);
       if (!check.ok) {
         setScanError(check.reason);
         return;
       }
+      setProjectPath(check.path);
+      setScan(null);
+      setScanOrigin(null);
+      setCleanupListedBytes(null);
+      setArtifactFindings([]);
+      setArtifactWarnings([]);
+      setArtifactError(null);
+      setView("workspace");
+      setWorkspaceTab("dashboard");
+    },
+    [openHistoryEntry],
+  );
+
+  const removeArtifacts = useCallback(
+    async (relativePaths: string[]) => {
+      if (!projectPath) throw new Error("Select a folder first.");
+      const report = await deleteArtifacts(projectPath, relativePaths);
+      if (report.deleted.length === 0) {
+        const reason = report.failed[0]?.error ?? "Nothing was deleted.";
+        throw new Error(reason);
+      }
+      const removed = new Set(report.deleted.map((item) => item.relativePath));
+      setArtifactFindings((current) => current.filter((item) => !removed.has(item.relativePath)));
+      setCleanupListedBytes((current) => Math.max(0, (current ?? 0) - report.reclaimedBytes));
+      const record: CleanupHistoryEntry = {
+        id: `${Date.now()}`,
+        projectPath,
+        projectName: projectPath.split("/").filter(Boolean).pop() ?? projectPath,
+        cleanedAt: new Date().toISOString(),
+        reclaimedBytes: report.reclaimedBytes,
+        paths: report.deleted.map((item) => item.relativePath),
+      };
+      setCleanupHistory((current) => {
+        const next = [record, ...current].slice(0, 40);
+        void saveCleanupHistory(next).catch((error: unknown) => setScanError(errorMessage(error)));
+        return next;
+      });
+      if (report.failed.length > 0) {
+        setScanError(`${report.failed.length} folders were not deleted. ${report.failed[0]?.error ?? ""}`);
+      }
+    },
+    [projectPath],
+  );
+
+  const inspectPortNumber = useCallback(
+    async (value: string, options?: { openDiagnostics?: boolean }) => {
+      const check = validatePort(value);
+      if (!check.ok) {
+        setScanError(check.reason);
+        return null;
+      }
       if (!desktop) {
         setScanError("Port inspection runs in the desktop app.");
-        return;
+        return null;
       }
       setInspectingPort(true);
       setScanError(null);
       try {
-        setPortResult(await inspectPort(check.port));
-        setView("workspace");
-        setWorkspaceTab("diagnostics");
+        const result = await inspectPort(check.port);
+        setPortResult(result);
+        if (options?.openDiagnostics) {
+          setView("workspace");
+          setWorkspaceTab("diagnostics");
+        }
+        return result;
       } catch (error) {
         setScanError(errorMessage(error));
+        return null;
       } finally {
         setInspectingPort(false);
       }
@@ -324,9 +407,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     void loadHistory()
       .then((entries) => setHistory(entries.filter(isHistoryEntry)))
       .catch((error: unknown) => setScanError(errorMessage(error)));
-    void sampleFixturePath()
-      .then((path) => setSamplePath(path))
-      .catch(() => setSamplePath(null));
+    void loadCleanupHistory()
+      .then((entries) => setCleanupHistory(entries.filter(isCleanupEntry)))
+      .catch(() => setCleanupHistory([]));
   }, [desktop]);
 
   useEffect(() => {
@@ -418,6 +501,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       scan,
       scanOrigin,
       history,
+      cleanupHistory,
       scanning,
       scanError,
       dragging,
@@ -425,18 +509,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       updateSettings,
       dataDirectory,
       appVersion,
-      samplePath,
       portResult,
       inspectingPort,
       toast,
       chooseFolder,
       scanCurrent,
-      openSample,
       openHistoryEntry,
       inspectPortNumber,
+      diagnosticsFocus,
+      processesPortQuery,
+      openDiagnosticsTab,
+      openProcessesFindPort,
+      openProjectInWorkspace,
+      clearProcessesPortQuery,
       copyText,
       openDocs,
       runConfirmedFix,
+      removeArtifacts,
     }),
     [
       view,
@@ -453,6 +542,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       scan,
       scanOrigin,
       history,
+      cleanupHistory,
       scanning,
       scanError,
       dragging,
@@ -460,18 +550,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       updateSettings,
       dataDirectory,
       appVersion,
-      samplePath,
       portResult,
       inspectingPort,
       toast,
       chooseFolder,
       scanCurrent,
-      openSample,
       openHistoryEntry,
       inspectPortNumber,
+      diagnosticsFocus,
+      processesPortQuery,
+      openDiagnosticsTab,
+      openProcessesFindPort,
+      openProjectInWorkspace,
+      clearProcessesPortQuery,
       copyText,
       openDocs,
       runConfirmedFix,
+      removeArtifacts,
     ],
   );
 

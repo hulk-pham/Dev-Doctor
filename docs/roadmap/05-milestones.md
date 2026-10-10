@@ -12,7 +12,7 @@ Each milestone is usable on its own. Do not start the next one by widening the s
 - The scan shows the current step and a progress bar.
 - No delete button.
 
-Status: read-only Cleanup view includes worktrees, unused branches, and scan progress. Deletion is still M2.
+Status: done. Deletion, processes, and measured history are the later milestones.
 
 ## M2 — Confirmed cleanup
 
@@ -20,15 +20,21 @@ Status: read-only Cleanup view includes worktrees, unused branches, and scan pro
 - Confirm dialog lists paths and consequences.
 - Delete only those directories. Record measured bytes and the paths locally.
 
+Status: done. Uncertain rows, worktrees, branches, symlinks, and `.git` cannot be deleted.
+
 ## M3 — Process inspector
 
 - `ps` and the existing port check, shown in one view.
 - Details first. Terminate only after confirm, with the PID denylist from the safety notes.
 
+Status: done. One sample of CPU or memory is labeled as observed, not a problem.
+
 ## M4 — History
 
 - Persist artifact scans and cleanup results beside the existing diagnostic history.
 - The dashboard shows the latest measured totals, not a score.
+
+Status: done. Scan history stores the measured folder total. Cleanup history stores reclaimed bytes and paths.
 
 ## Done for a milestone
 

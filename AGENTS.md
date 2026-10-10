@@ -1,15 +1,17 @@
-# Dev Doctor agent map
+# Dev Doctor — rules for agents
 
-Read these rules before changing the app:
+**Always read:** `.cursor/rules/dev-doctor.mdc` (handoff, architecture, ship loop).
 
-- `.cursor/rules/architecture.mdc` — Rust owns the machine, React owns findings
-- `.cursor/rules/agent-workflow.mdc` — tests, MCP check, done report, when to stop
-- `.cursor/rules/debug-harness.mdc` — drive the real window on port 9223
-- `.cursor/rules/ui-chrome.mdc` — editor layout and the title-row measurements
-- `.cursor/rules/diagnostics.mdc` — safe findings and fixes
+**UI (one kit):** `.cursor/rules/ui-kit.mdc` + **`docs/product/ui-kit.md`** — toolbars, scope, icons, tabs. Code: `screen-toolbar.tsx`.
 
-Latest lessons:
+**State:** `docs/handoff.md` at chat start; update at end.
 
-- 2026-10-10: Menu toggle stays 14px right of the green window button, with equal padding above and below.
-- 2026-10-10: Expanding the menu widens the icon column. Do not add a second panel.
-- 2026-10-10: No in-app layout harness. Inspect with the MCP bridge, then write a one-line note if the lesson is new.
+| When you touch… | Also read |
+| --- | --- |
+| Any page / component | `ui-kit.mdc` (above) |
+| Layout, title row, nav width | `ui-chrome.mdc` |
+| Product journeys / ux debt | `design-principles.md`, `ux-review.md` |
+| Diagnostic rules / Rust | `diagnostics.mdc` |
+| Desktop window verify | `debug-harness.mdc` |
+
+**Chrome regression:** menu toggle `left = zoom.x + zoom.width + 14`; same `y`/`height` as green button.

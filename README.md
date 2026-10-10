@@ -1,139 +1,67 @@
+<div align="center">
+
 # Dev Doctor
 
-Local-first macOS diagnostics for Node.js projects. Dev Doctor scans a folder on your machine, explains what is broken in plain English, and applies only the fixes you explicitly confirm.
+**Know what is wrong with a Node project, free the disk, and see who holds the port — without the project leaving your Mac.**
 
-**Know what is broken. Fix it with confidence.**
+<img src="https://img.shields.io/badge/macOS-15%2B-111?style=flat-square" alt="macOS 15+">
+<img src="https://img.shields.io/badge/local--first-no%20telemetry-111?style=flat-square" alt="Local-first, no telemetry">
 
-Dev Doctor is a desktop app for developers who work with Node.js, TypeScript, npm or pnpm, and Git. It answers three questions: what is wrong, why it is happening, and how to fix it safely. Project contents stay on the machine. There is no telemetry.
+<img src="docs/screenshots/product-showcase.png" width="100%" alt="Dev Doctor diagnostics window in front of the workspace overview and cleanup screens">
 
-## Install and run
+</div>
 
-Requirements:
+## What it does
 
-- macOS 15 or newer for the tested build path
-- Node.js 20 or newer, plus npm
-- Rust stable (1.77 or newer; this repo was built with Rust 1.99)
-- Xcode Command Line Tools
+Pick a folder and run **Scan Project**. Dev Doctor measures reclaimable folders and checks the toolchain in one pass, then points you at the next step.
+
+| | |
+| --- | --- |
+| **Overview** | Reclaimable disk, error and warning counts, and one button to open Cleanup or Diagnostics. |
+| **Cleanup** | Generated folders such as `node_modules` and build output, with sizes. Nothing is deleted until you confirm. |
+| **Diagnostics** | Node, npm, pnpm, lockfiles, environment **names**, and Git. Each row says what is wrong, why, and what to do. |
+| **Processes** | Dev servers on this Mac, with listen ports on the row. From Diagnostics, **Find in Processes** jumps to the process that holds a port. |
+| **Projects** | Past scans, so you can reopen a folder with the last result. |
+
+## Privacy
+
+Scans stay on your Mac. There is no account and no telemetry. `.env` values are dropped before a snapshot exists and are not shown or saved. History is a JSON file in the app data folder (path is on Settings).
+
+The only commands that run are the ones you confirm, such as `npm install --ignore-scripts` or `pnpm install --ignore-scripts`.
+
+## Install
+
+Download the latest **.dmg** from the [releases](https://github.com/hulk-pham/Dev-Doctor/releases/latest) page, open it, and drag Dev Doctor to Applications.
+
+## How to use
+
+1. Choose a project folder, or pick one from recent scans.
+2. Click **Scan Project** and wait for the overview cards.
+3. Follow the next step: **Review cleanup** or **Review errors**.
+4. On Cleanup, select folders and confirm before anything is removed.
+5. On Diagnostics, filter by severity. If you already know a port, use **Find in Processes**.
+6. On Processes, pause the list if you need to read a row. Stopping a process asks you to confirm.
+
+## Build from source
+
+macOS, Node.js 20+, Rust, and Xcode Command Line Tools.
 
 ```bash
 npm install
-npm run prepare:fixture
 npm run tauri dev
 ```
 
-`npm run prepare:fixture` creates a Git repository inside `fixtures/sample-node-app` and leaves `src/uncommitted.js` uncommitted. That folder is sample data with intentional problems. In the app, use **Scan sample project** on Overview.
+A local `.app` is `npm run tauri build` (under `src-tauri/target/release/bundle/`). Tests, signing, and layout of the code: [docs/development.md](docs/development.md).
 
-To scan your own work, choose a folder or drop it on the window, then use **Scan Project**.
+## Contribute
 
-Production bundle:
+Issues and pull requests are welcome.
 
-```bash
-npm run tauri build
-```
+- Bug or idea: open a [GitHub issue](https://github.com/hulk-pham/Dev-Doctor/issues) with what you expected and what happened.
+- Code change: fork the repo, branch from `main`, and open a pull request.
+- Run `npm test` and `npm run typecheck` before you push. Rust changes also need `cargo test --manifest-path src-tauri/Cargo.toml`.
+- UI screenshots for the README are rebuilt with `npm run screenshots:showcase` after you replace the PNGs in `docs/screenshots/`.
 
-The `.app` and disk image are written under `src-tauri/target/release/bundle/`. A local unsigned build opens after you right-click it and choose Open, or after you remove the quarantine flag. See signing below before you distribute it.
+## License
 
-## Tests
-
-```bash
-npm test
-npm run typecheck
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-`npm test` runs Vitest. It covers version comparison, lockfile detection, environment-name comparison, Git status parsing, malformed manifests, missing files, permission errors, fix confirmation, and path allowlisting. `cargo test` covers the Rust path checks, command allowlist, secret redaction, timeouts, and a real scan of the sample fixture.
-
-## Architecture
-
-```text
-React UI  ->  typed diagnostic rules (TypeScript)
-                 ^
-                 | ProjectSnapshot (names, versions, status text)
-                 |
-           Tauri commands (Rust)
-                 |
-     allowlisted argv only: node, npm, pnpm, git, lsof, ps, installs
-```
-
-| Area | Location |
-| --- | --- |
-| Screens and shell | `src/pages`, `src/components` |
-| Finding model | `src/domain/types.ts` |
-| Rules | `src/diagnostics` |
-| Tauri client | `src/services/tauri.ts` |
-| Path checks and allowlist | `src-tauri/src/security.rs` |
-| Process execution | `src-tauri/src/probe.rs` |
-| Snapshot collection | `src-tauri/src/snapshot.rs` |
-| Local history | `src-tauri/src/history.rs` |
-| Sample project | `fixtures/sample-node-app` |
-
-The webview cannot run a shell. It calls a fixed set of Tauri commands. Install fixes are `npm install --ignore-scripts` or `pnpm install --ignore-scripts`, with the project path as the working directory. Arguments are an array. User text is never interpolated into a shell.
-
-Rules return structured findings. One failed check does not cancel the rest of the scan. If a range or file cannot be judged, the finding says so.
-
-## Supported diagnostics
-
-**Runtime & Tooling.** Node.js, npm, and pnpm presence and versions. `engines.node` is compared with the `semver` package. Unparseable ranges stay uncertain.
-
-**Dependencies.** `package.json`, lockfiles, `node_modules`, and a heuristic check that each direct dependency name has a folder. Optional dependencies are not flagged. Multiple lockfiles are a warning, and Dev Doctor will not choose a package manager for you.
-
-**Project configuration.** `.env.example` or `.env.sample` names are compared with names in `.env`. Values are discarded in Rust before the snapshot is built.
-
-**Git.** Repository detection, branch, and uncommitted changes inside the selected folder. No reset, clean, or checkout.
-
-**Ports & Processes.** You enter a TCP port. `lsof` reports listeners. `ps -o comm=` adds a process name. Processes are never killed.
-
-## Safe fixes
-
-| Action | What the app does |
-| --- | --- |
-| Open docs | Opens an allowlisted HTTPS page |
-| Copy command | Copies text. Nothing runs |
-| Install | Shows the exact command, directory, and side effects. Runs only after Confirm |
-
-Installs are refused outside user and temporary folders, and for any action other than `npm-install` or `pnpm-install`. Commands time out. `--ignore-scripts` is intentional: package lifecycle scripts are not executed.
-
-## Security and privacy
-
-- Diagnostics are read-only until you confirm a fix.
-- `.env` values are not returned, displayed, logged, or written into scan history.
-- History is JSON in the app data directory, shown on Settings. Assignments that look like `NAME=value` are redacted again before save.
-- The frontend permission set is `core:default` and the folder dialog. It does not include a shell or a general filesystem scope.
-- Documentation URLs must match an exact allowlist.
-- There is no account, analytics, or network call except the package manager you confirm, which talks to the registry, and the browser page you open.
-
-## macOS signing and notarization
-
-`npm run tauri dev` and a local `tauri build` do not need an Apple Developer certificate. Gatekeeper will block an unsigned app downloaded from the internet.
-
-To distribute a release build outside your own Mac:
-
-1. Enroll in the Apple Developer Program.
-2. Create a Developer ID Application certificate.
-3. Create an app-specific password and a notary profile with `xcrun notarytool store-credentials`.
-4. Build with signing enabled. Tauri reads `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` when you set `bundle > macOS > signingIdentity` and the notarization fields in `src-tauri/tauri.conf.json`.
-5. Confirm the ticket with `spctl --assess --type execute` and `stapler validate`.
-
-Hardened runtime is required for notarization. Dev Doctor does not need special entitlements beyond Tauri's defaults for a WebKit webview and local process execution. If you later add a JIT or unsigned library, you must declare that entitlement and justify it to Apple.
-
-Without notarization, users can still run a locally built app by right-clicking it and choosing Open.
-
-## Known limitations
-
-- The tested target is macOS. Path rules reject system locations such as `/usr` and `/System`.
-- A double-clicked `.app` has a shorter `PATH` than your shell. The runner also looks in `/opt/homebrew/bin` and `/usr/local/bin`. nvm installs outside those directories may still be missed until you launch from a terminal.
-- Yarn and Bun lockfiles are detected. Their installers are not executed.
-- Missing dependency folders are a heuristic. They can miss packages that are bundled or provided another way.
-- `engines.node` must be a semver range. Other syntax is reported as uncertain.
-- Port history is not stored. `lsof` may truncate a command name; the PID comes from `ps` when that works.
-- Package installs skip lifecycle scripts, so native addons may still need a full install you run yourself.
-- The sample's mixed lockfiles intentionally have no one-click install.
-
-## Roadmap
-
-- Yarn and Bun installs behind the same confirmation flow
-- Workspace and monorepo awareness
-- `tsconfig` and ESLint checks
-- Remembering the last folder across launches
-- Windows and Linux path policies
-- A signed, notarized release build
+[MIT](LICENSE).

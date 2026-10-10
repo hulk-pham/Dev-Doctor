@@ -31,12 +31,49 @@ export function saveHistory(entries: ScanHistoryEntry[]): Promise<void> {
   return invoke("save_history", { entries });
 }
 
-export function appMetadata(): Promise<AppMetadata> {
-  return invoke("app_metadata");
+export function loadCleanupHistory(): Promise<import("../domain/types").CleanupHistoryEntry[]> {
+  return invoke("load_cleanup_history");
 }
 
-export function sampleFixturePath(): Promise<string | null> {
-  return invoke("sample_fixture_path");
+export function saveCleanupHistory(entries: import("../domain/types").CleanupHistoryEntry[]): Promise<void> {
+  return invoke("save_cleanup_history", { entries });
+}
+
+export interface DeleteReport {
+  deleted: Array<{ relativePath: string; bytes: number }>;
+  failed: Array<{ relativePath: string; error: string }>;
+  reclaimedBytes: number;
+}
+
+export function deleteArtifacts(projectPath: string, relativePaths: string[]): Promise<DeleteReport> {
+  return invoke("delete_artifacts", { projectPath, relativePaths });
+}
+
+export interface ProcessInfo {
+  pid: number;
+  ppid: number;
+  cpuPercent: number;
+  memoryBytes: number;
+  elapsed: string;
+  name: string;
+  command: string;
+  cwd: string | null;
+  tcpPorts: number[];
+  development: boolean;
+  observedHighCpu: boolean;
+  observedHighMemory: boolean;
+}
+
+export function listProcesses(includeAll = false): Promise<ProcessInfo[]> {
+  return invoke("list_processes", { includeAll });
+}
+
+export function terminateProcess(pid: number): Promise<void> {
+  return invoke("terminate_process", { pid });
+}
+
+export function appMetadata(): Promise<AppMetadata> {
+  return invoke("app_metadata");
 }
 
 export interface ChromeButton {

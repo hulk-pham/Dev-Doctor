@@ -1,0 +1,25 @@
+---
+description: Single UI kit — toolbars, scope, actions, tabs (read before any UI)
+globs: src/pages/**/*.tsx,src/components/**/*.tsx
+alwaysApply: false
+---
+
+# UI kit (mandatory for UI)
+
+**Spec:** `docs/product/ui-kit.md`. **Code:** `screen-toolbar.tsx`, `SegmentedFilter`, `FilterMenu`, `FilterChip`, `ui-layout.ts`.
+
+## Non-negotiable
+
+1. **Toolbars** — `ScreenToolbar` + `filterToolbar`; no `insetBar`, no rounded gray wrapper.
+2. **Scope** — `SegmentedFilter` only (filled default = active scope).
+3. **Toolbar actions** (pause, refresh, …) — **`ToolbarIconButton`**, not text `Button` sm beside scope.
+4. **Optional toggles** on toolbar — **`FilterChip`**, not scope buttons.
+5. **Section nav** — underline tabs (`WorkspaceSegments`), not pill buttons.
+6. **Secondary filter menu** — `FilterMenu` in **`ToolbarEnd`** (`ml-auto`).
+7. **Findings** — `findingRowAccent` + badge.
+
+When adding a control, match an existing row in `ui-kit.md` — do not invent a third tab style.
+
+# Notes
+
+- 2026-10-11: Processes Pause/Refresh were icon-only; scope Dev/All uses SegmentedFilter like Diagnostics.

@@ -2,16 +2,16 @@ mod artifacts;
 mod chrome;
 mod history;
 mod probe;
+mod processes;
 mod security;
 mod snapshot;
 
-use history::{data_dir, load, save};
+use history::{data_dir, load, load_cleanups, save, save_cleanups};
 use probe::{execute_install, inspect_listen_port, FixExecutionResult, PortInspection};
-use security::{ensure_allowed_url, validate_project_path};
+use security::ensure_allowed_url;
 use serde::Serialize;
 use tauri::Emitter;
 use snapshot::{collect_project_snapshot, ProjectSnapshot};
-use std::path::PathBuf;
 use tauri_plugin_opener::OpenerExt;
 
 #[derive(Debug, Serialize)]
@@ -57,6 +57,37 @@ fn save_history(app: tauri::AppHandle, entries: Vec<serde_json::Value>) -> Resul
 }
 
 #[tauri::command]
+fn load_cleanup_history(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    load_cleanups(&app)
+}
+
+#[tauri::command]
+fn save_cleanup_history(app: tauri::AppHandle, entries: Vec<serde_json::Value>) -> Result<(), String> {
+    save_cleanups(&app, entries)
+}
+
+#[tauri::command]
+async fn delete_artifacts(project_path: String, relative_paths: Vec<String>) -> Result<artifacts::DeleteReport, String> {
+    tauri::async_runtime::spawn_blocking(move || artifacts::delete_scanned_directories(&project_path, &relative_paths))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn list_processes(include_all: bool) -> Result<Vec<processes::ProcessInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || processes::list_processes(include_all))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn terminate_process(pid: u32) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || processes::terminate_process(pid))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 fn app_metadata(app: tauri::AppHandle) -> Result<AppMetadata, String> {
     Ok(AppMetadata {
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -78,15 +109,6 @@ async fn scan_artifacts(app: tauri::AppHandle, project_path: String) -> Result<a
     })
     .await
     .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-fn sample_fixture_path() -> Option<String> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/sample-node-app");
-    let canonical = path.canonicalize().ok()?;
-    validate_project_path(canonical.to_str()?)
-        .ok()
-        .map(|checked| checked.to_string_lossy().to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -112,10 +134,14 @@ pub fn run() {
             open_allowed_url,
             load_history,
             save_history,
+            load_cleanup_history,
+            save_cleanup_history,
+            delete_artifacts,
+            list_processes,
+            terminate_process,
             app_metadata,
             window_chrome,
-            scan_artifacts,
-            sample_fixture_path
+            scan_artifacts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,30 +1,26 @@
 ---
-description: How to inspect the running Dev Doctor window
-alwaysApply: true
+description: MCP bridge for the real WKWebView (not browser :1420)
+globs: src/pages/**/*.tsx,src/components/**/*.tsx
+alwaysApply: false
 ---
 
 # Debug the running app
 
-`npm run tauri dev` serves Vite at `http://localhost:1420` and opens a WKWebView. WKWebView has no Chrome DevTools Protocol. Browser tools on port 1420 are not the desktop window: `isTauri()` is false and scans will not run.
+`npm run tauri dev` → WKWebView (no CDP). Browser on **:1420** is not the desktop app.
 
-Use the debug-only MCP bridge (`tauri-plugin-mcp-bridge`, `127.0.0.1:9223`, permission `mcp-bridge:default`). It is off in release builds. Cursor loads it from `.cursor/mcp.json`. From the shell:
+Debug MCP: `tauri-plugin-mcp-bridge`, **127.0.0.1:9223** (`.cursor/mcp.json`). Start once per `tauri dev`:
 
 ```bash
 npx -y -p @hypothesi/tauri-mcp-cli tauri-mcp driver-session start --port 9223
 npx -y -p @hypothesi/tauri-mcp-cli tauri-mcp webview-screenshot --file /tmp/dev-doctor.png
-npx -y -p @hypothesi/tauri-mcp-cli tauri-mcp webview-execute-js --script '(() => document.title)()'
+npx -y -p @hypothesi/tauri-mcp-cli tauri-mcp webview-interact --action click --selector '<css>'
 ```
 
-UI work is unfinished until this session is used. Start it once per `tauri dev` process, then screenshot and read the image. For a click or toggle, run `webview-interact` and screenshot again. Compare native buttons from `window_chrome` with the toggle `getBoundingClientRect()` when chrome spacing changes.
+UI change unfinished until screenshot + exercise changed control. Compare `window_chrome` with toggle `getBoundingClientRect()` when title row changes.
 
-```bash
-npx -y -p @hypothesi/tauri-mcp-cli tauri-mcp webview-interact --action click --selector '[aria-pressed]'
-```
-
-Do not add an in-app layout harness overlay. Dashed boxes and a measurement panel were tried and rejected.
+No in-app layout harness overlay.
 
 # Notes
 
-- 2026-10-10: Toggle stays 14px to the right of the green button. Top and bottom padding of that row stay equal. Pulling the toggle flush against the green button was rejected.
-
-Still missing: no Playwright/WebdriverIO suite. Hasgard targets Tauri 3, so do not add it to this Tauri 2 app. Official `tauri-driver` does not drive macOS WKWebView.
+- 2026-10-10: Toggle 14px right of green button; equal padding above/below title row.
+- No Playwright for this Tauri 2 macOS WKWebView stack.

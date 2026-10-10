@@ -1,0 +1,46 @@
+---
+description: UI/feature checklist — affordances, density, ux-review
+globs: src/pages/**/*.tsx,src/components/**/*.tsx,docs/product/**
+alwaysApply: false
+---
+
+# Product design (UI / features)
+
+**Brief invariants:** `dev-doctor.mdc` §4. **Journeys & tokens:** `docs/product/design-principles.md`. **Debt:** `docs/product/ux-review.md` → **Fixed** when shipped.
+
+## Before writing code
+
+1. **User question** — “When they open this, they want to know ___.”
+2. **Journey** — row in `design-principles.md`
+3. **Scope** — selected project / machine / history (say in copy if unclear)
+4. **Primary action** — one main control per screen region
+5. **Entry / exit** — no sidebar jump without explicit nav (unless user asked)
+
+Two screens same question → merge or differentiate, not a third panel.
+
+## Affordance audit
+
+Per fact (port, size, severity, PID):
+
+1. **Primary surface** — list row or dashboard card
+2. **Secondary** — one toolbar filter/search/go-to, not a second bordered card
+3. **No twins** — e.g. ports on Processes rows; lookup on Diagnostics only
+4. **Deep links** — chip/selection on destination, not duplicate search
+
+Reject: intro paragraph + tool card + list when the list is the screen.
+
+## Visual density
+
+- **Toolbar / scope / actions:** follow **`ui-kit.mdc`** — do not re-specify here
+- No page essay; status **11px muted** on `ToolbarEnd`
+- One bordered data container; spacing from **`src/lib/ui-layout.ts`**
+
+## After implementing
+
+Logic tests + MCP on primary control (`dev-doctor.mdc` §3). Update `handoff.md`; update `ux-review.md` if IA/copy changed materially.
+
+Ask one question when: two valid IA choices, unspecified safety tradeoff, or ux-review P0 with multiple fixes.
+
+# Notes
+
+- 2026-10-10: Authoritative product docs under `docs/product/` — read ux-review before re-deriving IA from git.

@@ -2,7 +2,7 @@ import type { ScanHistoryEntry, ScanResult } from "./types";
 
 export const HISTORY_LIMIT = 40;
 
-export function toHistoryEntry(scan: ScanResult): ScanHistoryEntry {
+export function toHistoryEntry(scan: ScanResult, artifactListedBytes: number | null = null): ScanHistoryEntry {
   return {
     id: scan.id,
     projectName: scan.project.name,
@@ -16,6 +16,7 @@ export function toHistoryEntry(scan: ScanResult): ScanHistoryEntry {
     findings: scan.findings,
     meta: scan.meta,
     projectType: scan.project.projectType,
+    artifactListedBytes,
   };
 }
 

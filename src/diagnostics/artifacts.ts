@@ -99,6 +99,10 @@ export function classifyArtifact(raw: RawArtifact): ArtifactFinding | null {
   );
 }
 
+export function canDeleteArtifact(item: ArtifactFinding): boolean {
+  return item.kind === "directory" && (item.safety === "generated" || item.safety === "reproducible");
+}
+
 export function classifyArtifacts(raws: RawArtifact[]): ArtifactFinding[] {
   return raws.flatMap((raw) => {
     const item = classifyArtifact(raw);

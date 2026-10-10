@@ -197,6 +197,86 @@ pub fn scan_project_artifacts(
     })
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedArtifact {
+    pub relative_path: String,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteFailure {
+    pub relative_path: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteReport {
+    pub deleted: Vec<DeletedArtifact>,
+    pub failed: Vec<DeleteFailure>,
+    pub reclaimed_bytes: u64,
+}
+
+pub fn delete_scanned_directories(project_path: &str, relative_paths: &[String]) -> Result<DeleteReport, String> {
+    let root = validate_project_path(project_path)?;
+    let mut deleted = Vec::new();
+    let mut failed = Vec::new();
+    for relative in relative_paths {
+        match delete_one(&root, relative) {
+            Ok(bytes) => deleted.push(DeletedArtifact {
+                relative_path: relative.clone(),
+                bytes,
+            }),
+            Err(error) => failed.push(DeleteFailure {
+                relative_path: relative.clone(),
+                error,
+            }),
+        }
+    }
+    let reclaimed_bytes = deleted.iter().fold(0_u64, |sum, item| sum.saturating_add(item.bytes));
+    Ok(DeleteReport {
+        deleted,
+        failed,
+        reclaimed_bytes,
+    })
+}
+
+fn delete_one(root: &Path, relative: &str) -> Result<u64, String> {
+    if relative.trim().is_empty() || relative.contains('\0') || relative.starts_with('/') {
+        return Err("That path cannot be deleted.".into());
+    }
+    let relative_path = Path::new(relative);
+    if relative_path.components().any(|component| matches!(component, std::path::Component::ParentDir)) {
+        return Err("Parent directory segments are not allowed.".into());
+    }
+    if relative_path.components().any(|component| component.as_os_str() == ".git") {
+        return Err(".git cannot be deleted.".into());
+    }
+    let joined = root.join(relative_path);
+    let meta = fs::symlink_metadata(&joined).map_err(|_| "That folder is not in the latest scan.".to_string())?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return Err("Only real directories from the scan can be deleted.".into());
+    }
+    let canonical = joined.canonicalize().map_err(|error| error.to_string())?;
+    if canonical == root || !canonical.starts_with(root) {
+        return Err("That folder is outside the selected project.".into());
+    }
+    let name = canonical.file_name().and_then(|value| value.to_str()).unwrap_or("");
+    let display = canonical.strip_prefix(root).unwrap_or(&canonical).to_string_lossy().replace('\\', "/");
+    let Some(rule) = best_rule(name, &display) else {
+        return Err("That folder is not an allowlisted cleanup target.".into());
+    };
+    let markers = markers_for(&canonical, root);
+    if !is_confirmed(rule, &markers) || (rule.safety != "generated" && rule.safety != "reproducible") {
+        return Err("Uncertain folders cannot be deleted.".into());
+    }
+    let (bytes, _) = measure(&canonical, &mut |_| {})?;
+    fs::remove_dir_all(&canonical).map_err(|error| format!("Could not delete that folder: {error}"))?;
+    Ok(bytes)
+}
+
 fn step(phase: &str, detail: &str, completed: u32, total: Option<u32>) -> ScanProgress {
     ScanProgress {
         phase: phase.to_string(),
@@ -216,6 +296,7 @@ struct CatalogFile {
 #[serde(rename_all = "camelCase")]
 struct CatalogRule {
     paths: Vec<String>,
+    safety: String,
     #[serde(default)]
     omit_if_unconfirmed: bool,
     #[serde(default)]
@@ -741,6 +822,50 @@ mod tests {
         let cache = result.artifacts.iter().find(|item| item.name == "__pycache__").unwrap();
         assert!(cache.markers.iter().any(|marker| marker == "*.py"));
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn deletes_a_confirmed_dist_and_refuses_uncertain_or_source() {
+        let root = std::env::temp_dir().join(format!("dev-doctor-delete-{}", std::process::id()));
+        let outside = std::env::temp_dir().join(format!("dev-doctor-delete-out-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+        fs::create_dir_all(root.join("dist")).unwrap();
+        fs::create_dir_all(root.join("target")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tmp")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(root.join("package.json"), "{}\n").unwrap();
+        fs::write(root.join("dist/app.js"), "console.log(1)\n").unwrap();
+        fs::write(root.join("target/app"), "bin").unwrap();
+        fs::write(root.join("src/index.ts"), "export {}\n").unwrap();
+        fs::write(outside.join("secret.txt"), "keep").unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("linked-dist")).ok();
+
+        let report = delete_scanned_directories(
+            &root.to_string_lossy(),
+            &[
+                "dist".into(),
+                "target".into(),
+                "src".into(),
+                "tmp".into(),
+                "../outside".into(),
+                ".git".into(),
+            ],
+        )
+        .unwrap();
+
+        assert!(report.deleted.iter().any(|item| item.relative_path == "dist" && item.bytes > 0));
+        assert!(!root.join("dist").exists());
+        assert!(root.join("target").exists());
+        assert!(root.join("src").exists());
+        assert!(root.join("tmp").exists());
+        assert!(outside.join("secret.txt").exists());
+        assert_eq!(report.reclaimed_bytes, report.deleted[0].bytes);
+        assert!(report.failed.len() >= 4);
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
     }
 
     fn git_ok(dir: &Path, args: &[&str]) {

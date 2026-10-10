@@ -1,16 +1,18 @@
-import { useMemo, useState } from "react";
-import { FindingCard } from "../components/FindingCard";
+import { useEffect, useMemo, useState } from "react";
+import { CompactFindingRow } from "../components/CompactFindingRow";
 import { FixDialog } from "../components/FixDialog";
 import { Button } from "../components/ui/button";
+import { FilterMenu } from "../components/ui/filter-menu";
+import { ScreenToolbar, ToolbarEnd } from "../components/ui/screen-toolbar";
+import { SegmentedFilter } from "../components/ui/segmented-filter";
+import { stack } from "../lib/ui-layout";
 import { CATEGORY_LABELS, CATEGORY_ORDER, type DiagnosticCategory, type DiagnosticFinding, type FixExecutionResult, type FixSuggestion } from "../domain/types";
-import { portFinding } from "../diagnostics/ports";
-import { cn } from "../lib/utils";
-import { useAppState } from "../state/AppState";
+import { useAppState, type DiagnosticsFocus } from "../state/AppState";
 
 type Focus = "all" | "error" | "warning" | "pass";
 
-const FOCUSES: Array<{ id: Focus; label: string }> = [
-  { id: "all", label: "All severities" },
+const FOCUS_OPTIONS: Array<{ id: Focus; label: string }> = [
+  { id: "all", label: "All" },
   { id: "error", label: "Errors" },
   { id: "warning", label: "Warnings" },
   { id: "pass", label: "Passed" },
@@ -20,14 +22,18 @@ export function DiagnosticsPage() {
   const state = useAppState();
   const [focus, setFocus] = useState<Focus>("all");
   const [category, setCategory] = useState<DiagnosticCategory | "all">("all");
-  const [port, setPort] = useState("3000");
+  const [port, setPort] = useState("");
   const [pending, setPending] = useState<FixSuggestion | null>(null);
   const [phase, setPhase] = useState<"confirm" | "running" | "done">("confirm");
   const [result, setResult] = useState<FixExecutionResult | null>(null);
 
-  const portFindings = state.portResult ? [portFinding(state.portResult)] : [];
+  useEffect(() => {
+    const map: Record<DiagnosticsFocus, Focus> = { all: "all", error: "error", warning: "warning", pass: "pass" };
+    setFocus(map[state.diagnosticsFocus]);
+  }, [state.diagnosticsFocus]);
+
   const findings = useMemo(() => {
-    const source = [...(state.scan?.findings ?? []), ...portFindings];
+    const source = state.scan?.findings ?? [];
     return source.filter((finding) => {
       if (focus === "pass" && finding.status !== "pass") return false;
       if (focus === "error" && finding.severity !== "error") return false;
@@ -35,7 +41,7 @@ export function DiagnosticsPage() {
       if (category !== "all" && finding.category !== category) return false;
       return true;
     });
-  }, [state.scan, state.portResult, focus, category, portFindings]);
+  }, [state.scan, focus, category]);
 
   const grouped = CATEGORY_ORDER.map((id) => ({
     id,
@@ -70,81 +76,60 @@ export function DiagnosticsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      {state.scan ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Metric label="Checks passed" value={state.scan.summary.passed} tone="text-success" />
-          <Metric label="Warnings" value={state.scan.summary.warnings} tone="text-warning" />
-          <Metric label="Errors" value={state.scan.summary.errors} tone="text-danger" />
-        </div>
-      ) : null}
-
+    <div className={stack}>
       {state.scanOrigin === "history" && state.scan ? (
-        <p className="rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm text-muted">
-          Viewing a saved scan. Run Scan Project for a fresh result.
-        </p>
+        <p className="text-[11px] text-muted">Saved scan — run Scan Project on Overview for a fresh result.</p>
       ) : null}
-      {state.scan?.meta.isSample ? (
-        <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
-          Sample data. These findings come from the bundled fixture, not from invented results.
-        </p>
-      ) : null}
+      <ScreenToolbar>
+        <SegmentedFilter aria-label="Severity" value={focus} options={FOCUS_OPTIONS} onChange={setFocus} />
+        <ToolbarEnd>
+          <FilterMenu
+            align="end"
+            prefix="Category"
+            value={category}
+            onChange={setCategory}
+            options={[
+              { id: "all" as const, label: "All" },
+              ...CATEGORY_ORDER.map((id) => ({ id, label: CATEGORY_LABELS[id] })),
+            ]}
+          />
+        </ToolbarEnd>
+      </ScreenToolbar>
 
-      <div className="flex flex-wrap gap-2">
-        {FOCUSES.map((item) => (
-          <FilterChip key={item.id} active={focus === item.id} onClick={() => setFocus(item.id)} label={item.label} />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <FilterChip active={category === "all"} onClick={() => setCategory("all")} label="All categories" />
-        {CATEGORY_ORDER.map((item) => (
-          <FilterChip key={item} active={category === item} onClick={() => setCategory(item)} label={CATEGORY_LABELS[item]} />
-        ))}
-      </div>
-
-      {!state.scan && portFindings.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-panel px-5 py-10 text-center">
-          <h2 className="text-sm font-medium">No scan yet</h2>
-          <p className="mt-1 text-sm text-muted">Choose a folder and run Scan Project. You can still inspect a port below.</p>
-        </div>
+      {!state.scan ? (
+        <p className="text-[13px] text-muted">Run Scan Project on Overview first.</p>
       ) : null}
 
       {grouped.map((group) => (
-        <section key={group.id} className="space-y-3">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{group.label}</h2>
+        <section key={group.id}>
+          <h2 className="mb-1 text-[11px] uppercase tracking-wide text-muted">{group.label}</h2>
           {group.id === "ports" ? (
-            <form
-              className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-panel p-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void state.inspectPortNumber(port);
-              }}
-            >
-              <label className="text-sm">
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-muted">TCP port</span>
-                <input
-                  value={port}
-                  onChange={(event) => setPort(event.target.value)}
-                  inputMode="numeric"
-                  className="h-9 w-28 rounded-lg border border-border bg-panel-2 px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-accent/60"
-                />
-              </label>
-              <Button type="submit" variant="secondary" disabled={state.inspectingPort}>
-                {state.inspectingPort ? "Checking…" : "Inspect port"}
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <input
+                value={port}
+                onChange={(event) => setPort(event.target.value)}
+                inputMode="numeric"
+                placeholder="Port"
+                className="h-8 w-[4.25rem] rounded-lg border border-border bg-panel-2 px-2 font-mono text-[13px]"
+              />
+              <Button type="button" size="sm" variant="secondary" disabled={!port.trim()} onClick={() => state.openProcessesFindPort(port)}>
+                Find in Processes
               </Button>
-              <p className="pb-2 text-xs text-muted">Shows the process name and PID. Dev Doctor will not stop it.</p>
-            </form>
+            </div>
           ) : null}
-          {group.findings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} onExecute={startFix} />
-          ))}
-          {group.id === "ports" && group.findings.length === 0 ? (
-            <p className="text-sm text-muted">No port has been inspected in this session.</p>
+          {group.findings.length > 0 ? (
+            <ul className="overflow-hidden rounded-lg border border-border">
+              {group.findings.map((finding) => (
+                <CompactFindingRow key={finding.id} finding={finding} onExecute={startFix} />
+              ))}
+            </ul>
+          ) : group.id === "ports" ? (
+            <p className="text-[11px] text-muted">No port findings in this scan.</p>
           ) : null}
         </section>
       ))}
 
-      {state.scan && findings.length === 0 ? <p className="text-sm text-muted">No findings match these filters.</p> : null}
+      {state.scan && findings.length === 0 ? <p className="text-[11px] text-muted">No findings match these filters.</p> : null}
 
       <FixDialog
         suggestion={pending}
@@ -155,29 +140,5 @@ export function DiagnosticsPage() {
         onConfirm={() => void confirmFix()}
       />
     </div>
-  );
-}
-
-function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-panel px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value}</div>
-    </div>
-  );
-}
-
-function FilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2.5 py-1 text-xs capitalize",
-        active ? "border-accent bg-accent/15 text-text" : "border-border text-muted hover:text-text",
-      )}
-    >
-      {label}
-    </button>
   );
 }
