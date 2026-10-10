@@ -1,7 +1,5 @@
-import { FolderOpen } from "lucide-react";
-import { ProjectDashboard } from "../components/ProjectDashboard";
-import { Button } from "../components/ui/button";
-import { basename, formatWhen } from "../lib/utils";
+import { Badge } from "../components/ui/badge";
+import { formatWhen } from "../lib/utils";
 import { useAppState } from "../state/AppState";
 
 export function ProjectsPage() {
@@ -15,38 +13,14 @@ export function ProjectsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted">Health for the folder you selected.</p>
-        <Button variant="secondary" onClick={() => void state.chooseFolder()}>
-          <FolderOpen size={15} />
-          Select folder
-        </Button>
-      </div>
+      <p className="text-sm text-muted">Folders scanned on this Mac. Open one to see it in Workspace.</p>
 
-      {state.scan ? (
-        <>
-          {state.scan.meta.isSample ? (
-            <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
-              Sample data. This fixture contains intentional problems so you can try Dev Doctor.
-            </p>
-          ) : null}
-          <ProjectDashboard scan={state.scan} />
-        </>
-      ) : (
+      {projects.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-panel px-5 py-10 text-center">
-          <h2 className="text-sm font-medium">{state.projectPath ? basename(state.projectPath) : "No project yet"}</h2>
-          <p className="mx-auto mt-1 max-w-md text-sm text-muted">
-            {state.projectPath
-              ? "This folder is selected. Run a scan to see its type, toolchain, and Git status."
-              : "Select a local project to see its path, toolchain, and last scan."}
-          </p>
-          <Button className="mt-4" onClick={() => void state.scanCurrent()} disabled={state.scanning}>
-            {state.scanning ? "Scanning…" : "Scan Project"}
-          </Button>
+          <h2 className="text-sm font-medium">No projects yet</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted">Scan a folder from Workspace. The summary stays on this machine.</p>
         </div>
-      )}
-
-      {projects.length > 0 ? (
+      ) : (
         <section className="rounded-xl border border-border bg-panel">
           <div className="border-b border-border px-4 py-3 text-sm font-medium">Previously scanned</div>
           <ul>
@@ -67,7 +41,34 @@ export function ProjectsPage() {
             ))}
           </ul>
         </section>
-      ) : null}
+      )}
+
+      <section className="overflow-hidden rounded-xl border border-border">
+        <h2 className="border-b border-border px-4 py-3 text-sm font-medium">All scans</h2>
+        {state.history.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted">No scans have been saved yet.</p>
+        ) : (
+          <ul>
+            {state.history.map((entry) => (
+              <li key={entry.id} className="border-b border-border last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => state.openHistoryEntry(entry)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-panel-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm">{entry.projectName}</span>
+                    <span className="block text-xs text-muted">{formatWhen(entry.scannedAt)}</span>
+                  </span>
+                  <Badge tone={entry.errorCount ? "error" : entry.warningCount ? "warning" : "pass"}>
+                    {entry.errorCount} errors · {entry.warningCount} warnings
+                  </Badge>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

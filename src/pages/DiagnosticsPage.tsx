@@ -2,18 +2,24 @@ import { useMemo, useState } from "react";
 import { FindingCard } from "../components/FindingCard";
 import { FixDialog } from "../components/FixDialog";
 import { Button } from "../components/ui/button";
-import { CATEGORY_LABELS, CATEGORY_ORDER, type DiagnosticCategory, type DiagnosticFinding, type DiagnosticSeverity, type FixExecutionResult, type FixSuggestion } from "../domain/types";
+import { CATEGORY_LABELS, CATEGORY_ORDER, type DiagnosticCategory, type DiagnosticFinding, type FixExecutionResult, type FixSuggestion } from "../domain/types";
 import { portFinding } from "../diagnostics/ports";
 import { cn } from "../lib/utils";
 import { useAppState } from "../state/AppState";
 
-const SEVERITIES: Array<DiagnosticSeverity | "all"> = ["all", "error", "warning", "info"];
+type Focus = "all" | "error" | "warning" | "pass";
+
+const FOCUSES: Array<{ id: Focus; label: string }> = [
+  { id: "all", label: "All severities" },
+  { id: "error", label: "Errors" },
+  { id: "warning", label: "Warnings" },
+  { id: "pass", label: "Passed" },
+];
 
 export function DiagnosticsPage() {
   const state = useAppState();
-  const [severity, setSeverity] = useState<DiagnosticSeverity | "all">("all");
+  const [focus, setFocus] = useState<Focus>("all");
   const [category, setCategory] = useState<DiagnosticCategory | "all">("all");
-  const [showPassed, setShowPassed] = useState(true);
   const [port, setPort] = useState("3000");
   const [pending, setPending] = useState<FixSuggestion | null>(null);
   const [phase, setPhase] = useState<"confirm" | "running" | "done">("confirm");
@@ -23,12 +29,13 @@ export function DiagnosticsPage() {
   const findings = useMemo(() => {
     const source = [...(state.scan?.findings ?? []), ...portFindings];
     return source.filter((finding) => {
-      if (!showPassed && finding.status === "pass") return false;
-      if (severity !== "all" && finding.severity !== severity) return false;
+      if (focus === "pass" && finding.status !== "pass") return false;
+      if (focus === "error" && finding.severity !== "error") return false;
+      if (focus === "warning" && finding.severity !== "warning") return false;
       if (category !== "all" && finding.category !== category) return false;
       return true;
     });
-  }, [state.scan, state.portResult, severity, category, showPassed, portFindings]);
+  }, [state.scan, state.portResult, focus, category, portFindings]);
 
   const grouped = CATEGORY_ORDER.map((id) => ({
     id,
@@ -64,7 +71,13 @@ export function DiagnosticsPage() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">Findings stay grouped by the part of the environment they describe.</p>
+      {state.scan ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="Checks passed" value={state.scan.summary.passed} tone="text-success" />
+          <Metric label="Warnings" value={state.scan.summary.warnings} tone="text-warning" />
+          <Metric label="Errors" value={state.scan.summary.errors} tone="text-danger" />
+        </div>
+      ) : null}
 
       {state.scanOrigin === "history" && state.scan ? (
         <p className="rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm text-muted">
@@ -78,10 +91,9 @@ export function DiagnosticsPage() {
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        {SEVERITIES.map((item) => (
-          <FilterChip key={item} active={severity === item} onClick={() => setSeverity(item)} label={item === "all" ? "All severities" : item} />
+        {FOCUSES.map((item) => (
+          <FilterChip key={item.id} active={focus === item.id} onClick={() => setFocus(item.id)} label={item.label} />
         ))}
-        <FilterChip active={showPassed} onClick={() => setShowPassed((value) => !value)} label={showPassed ? "Passed shown" : "Passed hidden"} />
       </div>
       <div className="flex flex-wrap gap-2">
         <FilterChip active={category === "all"} onClick={() => setCategory("all")} label="All categories" />
@@ -93,10 +105,7 @@ export function DiagnosticsPage() {
       {!state.scan && portFindings.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-panel px-5 py-10 text-center">
           <h2 className="text-sm font-medium">No scan yet</h2>
-          <p className="mt-1 text-sm text-muted">Select a project and run a scan. You can still inspect a port below.</p>
-          <Button className="mt-4" onClick={() => void state.scanCurrent()} disabled={state.scanning}>
-            {state.scanning ? "Scanning…" : "Scan Project"}
-          </Button>
+          <p className="mt-1 text-sm text-muted">Choose a folder and run Scan Project. You can still inspect a port below.</p>
         </div>
       ) : null}
 
@@ -145,6 +154,15 @@ export function DiagnosticsPage() {
         onCancel={() => setPending(null)}
         onConfirm={() => void confirmFix()}
       />
+    </div>
+  );
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-panel px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
+      <div className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value}</div>
     </div>
   );
 }

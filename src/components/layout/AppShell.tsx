@@ -1,20 +1,15 @@
-import { Clock, FolderGit2, PanelLeft, ScanSearch, Settings, Stethoscope } from "lucide-react";
+import { FolderGit2, LayoutDashboard, PanelLeft, PanelRight, Settings } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 import { windowChrome, type ChromeButton } from "../../services/tauri";
 import { useAppState, type View } from "../../state/AppState";
-import { DiagnosticsPage } from "../../pages/DiagnosticsPage";
-import { HistoryPage } from "../../pages/HistoryPage";
-import { OverviewPage } from "../../pages/OverviewPage";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { SettingsPage } from "../../pages/SettingsPage";
+import { ProjectInspector, WorkspacePage } from "../../pages/WorkspacePage";
 
-const NAV: Array<{ id: View; label: string; icon: typeof ScanSearch }> = [
-  { id: "overview", label: "Overview", icon: ScanSearch },
+const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
+  { id: "workspace", label: "Workspace", icon: LayoutDashboard },
   { id: "projects", label: "Projects", icon: FolderGit2 },
-  { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
-  { id: "history", label: "History", icon: Clock },
-  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 export function AppShell() {
@@ -32,6 +27,9 @@ export function AppShell() {
         height: zoom.height,
       }
     : { left: 80, top: 7, width: 16, height: 16 };
+  const inspectorToggleStyle = zoom
+    ? { right: 12, top: zoom.y, width: zoom.height, height: zoom.height }
+    : { right: 12, top: 7, width: 16, height: 16 };
 
   useEffect(() => {
     if (!state.desktop) return;
@@ -58,6 +56,16 @@ export function AppShell() {
         >
           <PanelLeft size={14} strokeWidth={1.75} />
         </button>
+        <button
+          type="button"
+          title={state.inspectorOpen ? "Hide project info" : "Show project info"}
+          aria-pressed={state.inspectorOpen}
+          onClick={() => state.setInspectorOpen((open) => !open)}
+          style={inspectorToggleStyle}
+          className="absolute z-10 flex items-center justify-center text-muted hover:text-text"
+        >
+          <PanelRight size={14} strokeWidth={1.75} />
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -67,26 +75,16 @@ export function AppShell() {
           menuExpanded ? "w-52 items-stretch px-2" : "w-12 items-center",
         )}
       >
-        {NAV.map((item) => {
-          const Icon = item.icon;
-          const active = state.view === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              title={item.label}
-              onClick={() => state.setView(item.id)}
-              className={cn(
-                "flex h-10 items-center rounded-md",
-                menuExpanded ? "w-full justify-start gap-3 px-2" : "w-10 justify-center",
-                active ? "bg-active text-text" : "text-muted hover:bg-hover hover:text-text",
-              )}
-            >
-              <Icon size={22} strokeWidth={1.5} className="shrink-0" />
-              {menuExpanded ? <span className="truncate text-[13px]">{item.label}</span> : null}
-            </button>
-          );
-        })}
+        {NAV.map((item) => (
+          <NavButton key={item.id} item={item} expanded={menuExpanded} active={state.view === item.id} onClick={() => state.setView(item.id)} />
+        ))}
+        <NavButton
+          item={{ id: "settings", label: "Settings", icon: Settings }}
+          expanded={menuExpanded}
+          active={state.view === "settings"}
+          onClick={() => state.setView("settings")}
+          className="mt-auto"
+        />
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col bg-panel">
@@ -98,25 +96,27 @@ export function AppShell() {
         {state.scanError ? (
           <div className="border-b border-border px-4 py-1.5 text-[12px] text-danger">{state.scanError}</div>
         ) : null}
-        <div className="flex min-h-0 flex-1">
-          <main className="min-w-0 flex-1 overflow-y-auto">
-            <div className="w-full px-8 py-6">
-              <Page />
-            </div>
-          </main>
-          <Inspector />
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className="w-full px-8 py-6">
+            <Page />
+          </div>
+        </main>
+      </div>
+      <aside
+        style={{ width: state.inspectorOpen ? 288 : 0 }}
+        className={cn(
+          "h-full min-w-0 shrink-0 self-stretch overflow-hidden bg-sidebar transition-[width] duration-200",
+          state.inspectorOpen ? "border-l border-border" : "border-l-0",
+        )}
+      >
+        <div className="h-full overflow-y-auto px-4 py-4">
+          <ProjectInspector />
         </div>
+      </aside>
       </div>
-      </div>
-
-      <footer className="flex h-[22px] shrink-0 items-center gap-3 border-t border-border bg-sidebar px-2 text-[11px] text-muted">
-        <span>{state.scanning ? "Scanning" : state.scan ? state.scan.health : "Ready"}</span>
-        <span className="min-w-0 flex-1 truncate">{state.projectPath ?? "No folder"}</span>
-        <span>v{state.appVersion}</span>
-      </footer>
 
       {state.toast ? (
-        <div className="fixed bottom-8 right-3 border border-border bg-panel px-3 py-1.5 text-[12px]">{state.toast}</div>
+        <div className="fixed bottom-3 right-3 border border-border bg-panel px-3 py-1.5 text-[12px]">{state.toast}</div>
       ) : null}
       {state.dragging ? (
         <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center bg-panel/80">
@@ -127,42 +127,41 @@ export function AppShell() {
   );
 }
 
-function Inspector() {
-  const { scan } = useAppState();
+function NavButton({
+  item,
+  expanded,
+  active,
+  onClick,
+  className,
+}: {
+  item: { id: View; label: string; icon: typeof LayoutDashboard };
+  expanded: boolean;
+  active: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const Icon = item.icon;
   return (
-    <aside className="hidden w-56 shrink-0 flex-col border-l border-border bg-sidebar xl:flex">
-      <div className="px-3 pt-3 pb-2 text-[11px] font-medium tracking-wide text-muted">OUTLINE</div>
-      {scan ? (
-        <dl className="space-y-3 px-3 py-1 text-[12px]">
-          <Row label="Project" value={scan.project.name} />
-          <Row label="Type" value={scan.project.projectType} />
-          <Row label="Branch" value={scan.meta.gitBranch ?? "—"} />
-          <Row label="Node" value={scan.meta.nodeVersion ?? "—"} />
-          <Row label="Packages" value={scan.meta.packageManager} />
-          <Row label="Errors" value={String(scan.summary.errors)} />
-          <Row label="Warnings" value={String(scan.summary.warnings)} />
-        </dl>
-      ) : (
-        <p className="px-3 text-[12px] text-muted">Scan a folder to see its outline.</p>
+    <button
+      type="button"
+      title={item.label}
+      onClick={onClick}
+      className={cn(
+        "flex h-10 items-center rounded-md",
+        expanded ? "w-full justify-start gap-3 px-2" : "w-10 justify-center",
+        active ? "bg-active text-text" : "text-muted hover:bg-hover hover:text-text",
+        className,
       )}
-    </aside>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-[11px] text-muted">{label}</dt>
-      <dd className="truncate">{value}</dd>
-    </div>
+    >
+      <Icon size={22} strokeWidth={1.5} className="shrink-0" />
+      {expanded ? <span className="truncate text-[13px]">{item.label}</span> : null}
+    </button>
   );
 }
 
 function Page(): ReactNode {
   const { view } = useAppState();
   if (view === "projects") return <ProjectsPage />;
-  if (view === "diagnostics") return <DiagnosticsPage />;
-  if (view === "history") return <HistoryPage />;
   if (view === "settings") return <SettingsPage />;
-  return <OverviewPage />;
+  return <WorkspacePage />;
 }

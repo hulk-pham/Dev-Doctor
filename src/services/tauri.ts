@@ -55,3 +55,20 @@ export interface WindowChrome {
 export function windowChrome(): Promise<WindowChrome> {
   return invoke("window_chrome");
 }
+
+export interface ArtifactScanProgress {
+  phase: string;
+  detail: string;
+  completed: number;
+  total: number | null;
+}
+
+export interface ArtifactScan {
+  projectPath: string;
+  artifacts: import("../diagnostics/artifacts").RawArtifact[];
+  warnings: string[];
+}
+
+export function scanArtifacts(projectPath: string): Promise<ArtifactScan> {
+  return invoke("scan_artifacts", { projectPath });
+}

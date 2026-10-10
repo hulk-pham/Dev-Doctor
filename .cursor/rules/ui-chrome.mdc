@@ -13,7 +13,7 @@ Layout, top to bottom:
 1. Title row. Native traffic lights plus the menu toggle. Drag with `data-tauri-drag-region="deep"`. A `button` is not a drag target.
 2. One nav column. Collapsed: icons only, `w-12`. Expanded: the same items show icon and label in that column (`w-52`). Do not add a second menu panel or a Recent list there.
 3. Main content. Do not repeat the menu name as a heading (no "Projects" / "Diagnostics" title whose only job is to say which item is selected).
-4. Status bar.
+4. Settings is the last item in the nav column, pinned to the bottom. There is no status bar. The version number lives on the Settings page.
 
 Window: `titleBarStyle: Overlay`, `hiddenTitle: true`. Dragging needs `core:window:allow-start-dragging`.
 
@@ -28,3 +28,6 @@ Product name shown to macOS is `Dev Doctor` (`productName` and `NSProcessInfo.se
 # Notes
 
 - 2026-10-10: Expanded menu is the icon column growing to show labels. A second panel with a section title and a Recent list was removed as useless.
+- 2026-10-10: Workspace is a dashboard of two cards. Scan Project runs diagnostics and artifact measurement together. Project info sits in a collapsible panel on the right.
+- 2026-10-10: The bottom status bar was removed. Settings stays at the bottom of the nav column. Version is only on the Settings page.
+- 2026-10-10: The project-info toggle sits on the title row, 12px from the right edge, with the same top and size as the left menu toggle. The right panel has no close control of its own.

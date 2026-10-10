@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
@@ -13,18 +14,31 @@ import {
 } from "react";
 import { prependHistory, scanFromHistory, toHistoryEntry } from "../domain/history";
 import type { FixExecutionResult, FixSuggestion, PortInspection, ScanHistoryEntry, ScanResult } from "../domain/types";
+import { classifyArtifacts, type ArtifactFinding } from "../diagnostics/artifacts";
 import { buildScanResult } from "../diagnostics/engine";
 import { validateFixRequest, validateProjectPath } from "../diagnostics/paths";
 import { validatePort } from "../diagnostics/ports";
 import { errorMessage } from "../lib/utils";
-import { appMetadata, collectSnapshot, executeFix, inspectPort, loadHistory, openAllowedUrl, sampleFixturePath, saveHistory } from "../services/tauri";
+import { appMetadata, collectSnapshot, executeFix, inspectPort, loadHistory, openAllowedUrl, sampleFixturePath, saveHistory, scanArtifacts, type ArtifactScanProgress } from "../services/tauri";
 import { applyTheme, readSettings, writeSettings, type Settings } from "./settings";
 
-export type View = "overview" | "projects" | "diagnostics" | "history" | "settings";
+export type View = "workspace" | "projects" | "settings";
+export type WorkspaceTab = "dashboard" | "diagnostics" | "cleanup";
 
 interface AppStateValue {
   view: View;
   setView: (view: View) => void;
+  workspaceTab: WorkspaceTab;
+  setWorkspaceTab: (tab: WorkspaceTab) => void;
+  inspectorOpen: boolean;
+  setInspectorOpen: (open: boolean | ((value: boolean) => boolean)) => void;
+  cleanupListedBytes: number | null;
+  setCleanupListedBytes: (bytes: number | null) => void;
+  artifactFindings: ArtifactFinding[];
+  artifactWarnings: string[];
+  artifactError: string | null;
+  scanProgress: ArtifactScanProgress | null;
+  scanDetails: string[];
   desktop: boolean;
   projectPath: string | null;
   scan: ScanResult | null;
@@ -60,7 +74,15 @@ function isHistoryEntry(value: unknown): value is ScanHistoryEntry {
 }
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [view, setView] = useState<View>("overview");
+  const [view, setView] = useState<View>("workspace");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("dashboard");
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [cleanupListedBytes, setCleanupListedBytes] = useState<number | null>(null);
+  const [artifactFindings, setArtifactFindings] = useState<ArtifactFinding[]>([]);
+  const [artifactWarnings, setArtifactWarnings] = useState<string[]>([]);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState<ArtifactScanProgress | null>(null);
+  const [scanDetails, setScanDetails] = useState<string[]>([]);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [scanOrigin, setScanOrigin] = useState<"live" | "history" | null>(null);
@@ -115,26 +137,49 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
       if (scanningRef.current) return;
       scanningRef.current = true;
+      const startedAt = Date.now();
       setScanning(true);
       setScanError(null);
       setProjectPath(check.path);
+      setCleanupListedBytes(null);
+      setArtifactFindings([]);
+      setArtifactWarnings([]);
+      setArtifactError(null);
+      setScanDetails(["Checking the toolchain"]);
+      setScanProgress({ phase: "environment", detail: "Checking the toolchain", completed: 0, total: null });
+      setView("workspace");
+      setWorkspaceTab("dashboard");
       try {
-        const snapshot = await collectSnapshot(check.path);
-        const result = buildScanResult(snapshot);
-        const nextHistory = prependHistory(historyRef.current, toHistoryEntry(result));
-        historyRef.current = nextHistory;
-        setScan(result);
-        setScanOrigin("live");
-        setHistory(nextHistory);
-        setView("diagnostics");
-        try {
-          await saveHistory(nextHistory);
-        } catch (error) {
-          setScanError(`Scan finished, but history could not be saved. ${errorMessage(error)}`);
+        const [snapshotOutcome, artifactOutcome] = await Promise.allSettled([
+          collectSnapshot(check.path),
+          scanArtifacts(check.path),
+        ]);
+        if (snapshotOutcome.status === "fulfilled") {
+          const result = buildScanResult(snapshotOutcome.value);
+          const nextHistory = prependHistory(historyRef.current, toHistoryEntry(result));
+          historyRef.current = nextHistory;
+          setScan(result);
+          setScanOrigin("live");
+          setHistory(nextHistory);
+          try {
+            await saveHistory(nextHistory);
+          } catch (error) {
+            setScanError(`Scan finished, but history could not be saved. ${errorMessage(error)}`);
+          }
+        } else {
+          setScanError(errorMessage(snapshotOutcome.reason));
         }
-      } catch (error) {
-        setScanError(errorMessage(error));
+        if (artifactOutcome.status === "fulfilled") {
+          const listed = classifyArtifacts(artifactOutcome.value.artifacts);
+          setArtifactFindings(listed);
+          setArtifactWarnings(artifactOutcome.value.warnings);
+          setCleanupListedBytes(listed.reduce((sum, row) => sum + (row.countsInTotal ? (row.bytes ?? 0) : 0), 0));
+        } else {
+          setArtifactError(errorMessage(artifactOutcome.reason));
+        }
       } finally {
+        const remaining = 3000 - (Date.now() - startedAt);
+        if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
         scanningRef.current = false;
         setScanning(false);
       }
@@ -163,7 +208,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setScan(null);
       setScanOrigin(null);
       setScanError(null);
-      setView("projects");
+      setCleanupListedBytes(null);
+      setArtifactFindings([]);
+      setArtifactWarnings([]);
+      setArtifactError(null);
+      setView("workspace");
+      setWorkspaceTab("dashboard");
     } catch (error) {
       setScanError(errorMessage(error));
     }
@@ -199,7 +249,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setScan(scanFromHistory(entry));
     setScanOrigin("history");
     setScanError(null);
-    setView("diagnostics");
+    setCleanupListedBytes(null);
+    setArtifactFindings([]);
+    setArtifactWarnings([]);
+    setArtifactError(null);
+    setView("workspace");
+    setWorkspaceTab("dashboard");
   }, []);
 
   const inspectPortNumber = useCallback(
@@ -217,7 +272,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setScanError(null);
       try {
         setPortResult(await inspectPort(check.port));
-        setView("diagnostics");
+        setView("workspace");
+        setWorkspaceTab("diagnostics");
       } catch (error) {
         setScanError(errorMessage(error));
       } finally {
@@ -299,7 +355,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           setProjectPath(check.path);
           setScan(null);
           setScanOrigin(null);
-          setView("projects");
+          setCleanupListedBytes(null);
+          setArtifactFindings([]);
+          setArtifactWarnings([]);
+          setArtifactError(null);
+          setView("workspace");
+          setWorkspaceTab("dashboard");
           return;
         }
         setDragging(true);
@@ -315,10 +376,43 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     };
   }, [desktop, scanPath]);
 
+  useEffect(() => {
+    if (!desktop) return;
+    let unlisten: (() => void) | undefined;
+    let alive = true;
+    void listen<ArtifactScanProgress>("artifact-scan-progress", (event) => {
+      if (!alive || !scanningRef.current) return;
+      setScanProgress(event.payload);
+      setScanDetails((current) => {
+        const line = event.payload.detail;
+        if (!line || current[current.length - 1] === line) return current;
+        return [...current, line].slice(-6);
+      });
+    }).then((stop) => {
+      if (alive) unlisten = stop;
+      else stop();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, [desktop]);
+
   const value = useMemo<AppStateValue>(
     () => ({
       view,
       setView,
+      workspaceTab,
+      setWorkspaceTab,
+      inspectorOpen,
+      setInspectorOpen,
+      cleanupListedBytes,
+      setCleanupListedBytes,
+      artifactFindings,
+      artifactWarnings,
+      artifactError,
+      scanProgress,
+      scanDetails,
       desktop,
       projectPath,
       scan,
@@ -346,6 +440,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     [
       view,
+      workspaceTab,
+      inspectorOpen,
+      cleanupListedBytes,
+      artifactFindings,
+      artifactWarnings,
+      artifactError,
+      scanProgress,
+      scanDetails,
       desktop,
       projectPath,
       scan,

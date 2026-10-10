@@ -1,3 +1,4 @@
+mod artifacts;
 mod chrome;
 mod history;
 mod probe;
@@ -8,6 +9,7 @@ use history::{data_dir, load, save};
 use probe::{execute_install, inspect_listen_port, FixExecutionResult, PortInspection};
 use security::{ensure_allowed_url, validate_project_path};
 use serde::Serialize;
+use tauri::Emitter;
 use snapshot::{collect_project_snapshot, ProjectSnapshot};
 use std::path::PathBuf;
 use tauri_plugin_opener::OpenerExt;
@@ -20,8 +22,10 @@ struct AppMetadata {
 }
 
 #[tauri::command]
-fn collect_snapshot(project_path: String) -> Result<ProjectSnapshot, String> {
-    collect_project_snapshot(&project_path)
+async fn collect_snapshot(project_path: String) -> Result<ProjectSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || collect_project_snapshot(&project_path))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -66,6 +70,17 @@ fn window_chrome(window: tauri::WebviewWindow) -> Result<chrome::WindowChrome, S
 }
 
 #[tauri::command]
+async fn scan_artifacts(app: tauri::AppHandle, project_path: String) -> Result<artifacts::ArtifactScan, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        artifacts::scan_project_artifacts(&project_path, &mut |progress| {
+            let _ = app.emit("artifact-scan-progress", &progress);
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 fn sample_fixture_path() -> Option<String> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/sample-node-app");
     let canonical = path.canonicalize().ok()?;
@@ -99,6 +114,7 @@ pub fn run() {
             save_history,
             app_metadata,
             window_chrome,
+            scan_artifacts,
             sample_fixture_path
         ])
         .run(tauri::generate_context!())
