@@ -31,7 +31,7 @@ async function fullShot(filename, width) {
 function brandLockup() {
   return Buffer.from(`<svg width="${canvasW}" height="${headerH}" xmlns="http://www.w3.org/2000/svg">
     <text x="${canvasW / 2 + 28}" y="38" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="32" font-weight="650" fill="#111">Dev Doctor</text>
-    <text x="${canvasW / 2 + 28}" y="64" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" fill="#5c6370">Local diagnostics for Node.js projects on your Mac</text>
+    <text x="${canvasW / 2 + 28}" y="64" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" fill="#5c6370">Local diagnostics for development projects on your Mac</text>
   </svg>`);
 }
 

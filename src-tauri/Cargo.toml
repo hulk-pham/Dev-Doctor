@@ -1,7 +1,7 @@
 [package]
 name = "dev-doctor"
 version = "0.2.0"
-description = "Local-first diagnostics for Node.js development environments"
+description = "Local-first diagnostics for development projects"
 authors = ["Dev Doctor"]
 license = "MIT"
 edition = "2024"

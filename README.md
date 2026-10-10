@@ -1,25 +1,34 @@
 <div align="center">
 
+<img src="src-tauri/icons/128x128@2x.png" width="96" alt="Dev Doctor">
+
 # Dev Doctor
 
-**Know what is wrong with a Node project, free the disk, and see who holds the port — without the project leaving your Mac.**
+Know what is wrong in a project, free the disk, and see who holds the port — without the project leaving your Mac.
 
-<img src="https://img.shields.io/badge/macOS-15%2B-111?style=flat-square" alt="macOS 15+">
-<img src="https://img.shields.io/badge/local--first-no%20telemetry-111?style=flat-square" alt="Local-first, no telemetry">
+<br>
 
-<img src="docs/screenshots/product-showcase.png" width="100%" alt="Dev Doctor diagnostics window in front of the workspace overview and cleanup screens">
+<img src="https://img.shields.io/badge/macOS-15%2B-007ec6" alt="macOS 15+">
+<img src="https://img.shields.io/badge/license-MIT-6f42c1" alt="MIT license">
+<img src="https://img.shields.io/badge/Tauri-v2-e6b800" alt="Tauri v2">
+
+<br>
+
+[Documentation](docs/documentation.md) · [Install](#install) · [Contribute](#contribute)
 
 </div>
+
+<img src="docs/screenshots/product-showcase.png" width="100%" alt="Dev Doctor diagnostics window in front of the workspace overview and cleanup screens">
 
 ## What it does
 
 Pick a folder and run **Scan Project**. Dev Doctor measures reclaimable folders and checks the toolchain in one pass, then points you at the next step.
 
-| | |
+| Screen | What you get |
 | --- | --- |
 | **Overview** | Reclaimable disk, error and warning counts, and one button to open Cleanup or Diagnostics. |
-| **Cleanup** | Generated folders such as `node_modules` and build output, with sizes. Nothing is deleted until you confirm. |
-| **Diagnostics** | Node, npm, pnpm, lockfiles, environment **names**, and Git. Each row says what is wrong, why, and what to do. |
+| **Cleanup** | Generated folders such as dependency installs and build output, with sizes. Nothing is deleted until you confirm. |
+| **Diagnostics** | Toolchain, lockfiles, environment **names**, and Git. Each row says what is wrong, why, and what to do. |
 | **Processes** | Dev servers on this Mac, with listen ports on the row. From Diagnostics, **Find in Processes** jumps to the process that holds a port. |
 | **Projects** | Past scans, so you can reopen a folder with the last result. |
 
@@ -44,14 +53,14 @@ Download the latest **.dmg** from the [releases](https://github.com/hulk-pham/De
 
 ## Build from source
 
-macOS, Node.js 20+, Rust, and Xcode Command Line Tools.
+macOS, Node.js 20+ and Rust (to build the app), and Xcode Command Line Tools.
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-A local `.app` is `npm run tauri build` (under `src-tauri/target/release/bundle/`). Tests, signing, and layout of the code: [docs/development.md](docs/development.md).
+A local `.app` is `npm run tauri build` (under `src-tauri/target/release/bundle/`). How to use each screen: [docs/documentation.md](docs/documentation.md). Tests and signing: [docs/development.md](docs/development.md).
 
 ## Contribute
 

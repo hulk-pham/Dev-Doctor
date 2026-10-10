@@ -1,6 +1,6 @@
 # Development
 
-Contributor and operator notes. The product pitch lives in the [README](../README.md).
+Contributor and operator notes. Product pitch: [README](../README.md). How to use the app: [documentation](documentation.md).
 
 ## Showcase screenshots
 

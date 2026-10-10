@@ -2,7 +2,7 @@
   "name": "dev-doctor",
   "private": true,
   "version": "0.2.0",
-  "description": "Local-first macOS diagnostics for Node.js development environments.",
+  "description": "Local-first macOS diagnostics for development projects.",
   "license": "MIT",
   "type": "module",
   "scripts": {
