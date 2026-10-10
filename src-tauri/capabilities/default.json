@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window. Shell access stays inside Rust commands.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:default"]
+}

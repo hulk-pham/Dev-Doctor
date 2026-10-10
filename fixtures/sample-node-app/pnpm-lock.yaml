@@ -1,0 +1,3 @@
+lockfileVersion: '9.0'
+
+# Intentionally present alongside package-lock.json so Dev Doctor can flag mixed lockfiles.
