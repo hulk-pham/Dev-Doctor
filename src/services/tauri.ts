@@ -140,3 +140,53 @@ export interface ArtifactScan {
 export function scanArtifacts(projectPath: string): Promise<ArtifactScan> {
   return invoke("scan_artifacts", { projectPath });
 }
+
+export function monitorSettingsLoad(): Promise<import("../domain/types").MonitorSettings> {
+  return invoke("monitor_settings_load");
+}
+
+export function monitorSettingsSave(settings: import("../domain/types").MonitorSettings): Promise<import("../domain/types").MonitorSettings> {
+  return invoke("monitor_settings_save", { settings });
+}
+
+export function monitorStart(): Promise<import("../domain/types").MonitorStatus> {
+  return invoke("monitor_start");
+}
+
+export function monitorStop(): Promise<import("../domain/types").MonitorStatus> {
+  return invoke("monitor_stop");
+}
+
+export function monitorStatus(): Promise<import("../domain/types").MonitorStatus> {
+  return invoke("monitor_status");
+}
+
+export function monitorRecent(range: string): Promise<import("../domain/types").MonitorSample[]> {
+  return invoke("monitor_recent", { range });
+}
+
+export function monitorAlertsList(): Promise<import("../domain/types").MonitorAlert[]> {
+  return invoke("monitor_alerts_list");
+}
+
+export function monitorAlertDismiss(alertId: string): Promise<import("../domain/types").MonitorAlert[]> {
+  return invoke("monitor_alert_dismiss", { alertId });
+}
+
+export function monitorAlertMuteRule(ruleId: string): Promise<import("../domain/types").MonitorAlert[]> {
+  return invoke("monitor_alert_mute_rule", { ruleId });
+}
+
+export function monitorAlertsQuery(
+  query: import("../domain/types").AlertHistoryQuery,
+): Promise<import("../domain/types").MonitorAlert[]> {
+  return invoke("monitor_alerts_query", { query });
+}
+
+export function monitorStorageStatus(): Promise<import("../domain/types").MonitorStorageStatus> {
+  return invoke("monitor_storage_status");
+}
+
+export function monitorClearHistory(): Promise<void> {
+  return invoke("monitor_clear_history");
+}

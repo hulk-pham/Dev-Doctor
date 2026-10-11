@@ -1,0 +1,98 @@
+{
+  "note": "Synthetic process samples for monitoring tests. No real machine data. A missing metric is null, never 0.",
+  "samples": [
+    {
+      "tick": 1,
+      "at": "2026-10-11T05:00:00Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T04:10:00Z",
+      "exePath": "/opt/homebrew/bin/node",
+      "name": "node",
+      "cpuPercent": 3.2,
+      "memoryBytes": 201326592
+    },
+    {
+      "tick": 2,
+      "at": "2026-10-11T05:00:05Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T04:10:00Z",
+      "exePath": "/opt/homebrew/bin/node",
+      "name": "node",
+      "cpuPercent": 96.5,
+      "memoryBytes": 212860928
+    },
+    {
+      "tick": 3,
+      "at": "2026-10-11T05:00:10Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T04:10:00Z",
+      "exePath": "/opt/homebrew/bin/node",
+      "name": "node",
+      "cpuPercent": null,
+      "memoryBytes": 223346688
+    },
+    {
+      "tick": 4,
+      "at": "2026-10-11T05:00:15Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T04:10:00Z",
+      "exePath": "/opt/homebrew/bin/node",
+      "name": "node",
+      "cpuPercent": 2.1,
+      "memoryBytes": 234881024
+    },
+    {
+      "tick": 5,
+      "at": "2026-10-11T05:00:20Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T04:10:00Z",
+      "exePath": "/opt/homebrew/bin/node",
+      "name": "node",
+      "cpuPercent": 1.8,
+      "memoryBytes": null
+    },
+    {
+      "tick": 6,
+      "at": "2026-10-11T05:00:25Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T04:10:00Z",
+      "exePath": "/opt/homebrew/bin/node",
+      "name": "node",
+      "cpuPercent": 1.4,
+      "memoryBytes": 245366784,
+      "note": "process exits after this tick; the next tick has no row for pid 4201"
+    },
+    {
+      "tick": 1,
+      "at": "2026-10-11T05:00:00Z",
+      "pid": 5300,
+      "startTime": "2026-10-11T04:50:00Z",
+      "exePath": "/opt/homebrew/bin/vite",
+      "name": "vite",
+      "cpuPercent": 0.9,
+      "memoryBytes": 98566144,
+      "note": "present on ticks 1 and 2 only; gone from tick 3 on"
+    },
+    {
+      "tick": 2,
+      "at": "2026-10-11T05:00:05Z",
+      "pid": 5300,
+      "startTime": "2026-10-11T04:50:00Z",
+      "exePath": "/opt/homebrew/bin/vite",
+      "name": "vite",
+      "cpuPercent": 1.1,
+      "memoryBytes": 100663296
+    },
+    {
+      "tick": 7,
+      "at": "2026-10-11T05:00:30Z",
+      "pid": 4201,
+      "startTime": "2026-10-11T05:00:29Z",
+      "exePath": "/usr/local/bin/python3",
+      "name": "python3",
+      "cpuPercent": 0.4,
+      "memoryBytes": 31457280,
+      "note": "same pid reused by a new process: start time and exe differ, so it is a different identity"
+    }
+  ]
+}

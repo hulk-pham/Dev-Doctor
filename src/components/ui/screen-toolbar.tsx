@@ -5,7 +5,9 @@ import { cn } from "../../lib/utils";
 import { Button } from "./button";
 
 export function ScreenToolbar({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn(filterToolbar, className)}>{children}</div>;
+  return (
+    <div className={cn(filterToolbar, "min-h-10 items-center", className)}>{children}</div>
+  );
 }
 
 export function ToolbarGroup({ children, className }: { children: ReactNode; className?: string }) {

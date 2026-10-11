@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window. Shell access stays inside Rust commands.",
+  "description": "Capability for the main window. Shell access stays inside Rust commands. mcp-bridge is inert in release: the plugin is registered only under debug_assertions in lib.rs.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "dialog:default",
+    "notification:default",
     "mcp-bridge:default"
   ]
 }

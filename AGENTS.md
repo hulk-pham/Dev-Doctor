@@ -6,6 +6,8 @@
 
 **State:** `docs/handoff.md` at chat start; update at end.
 
+**Roadmap:** `docs/roadmap/06-monitor-diagnose-fix.md` — tick a task only after its check ran; add a dated line to its Log.
+
 | When you touch… | Also read |
 | --- | --- |
 | Any page / component | `ui-kit.mdc` (above) |

@@ -3,6 +3,7 @@ mod chrome;
 mod history;
 mod layout;
 mod menus;
+mod monitoring;
 mod probe;
 mod processes;
 mod security;
@@ -13,7 +14,12 @@ use history::{data_dir, load, load_cleanups, save, save_cleanups};
 use probe::{execute_install, inspect_listen_port, FixExecutionResult, PortInspection};
 use security::ensure_allowed_url;
 use serde::Serialize;
-use tauri::{Emitter, Manager};
+use monitoring::{
+    load_settings, save_settings, AlertHistoryQuery, MonitorAlert, MonitorHandle, MonitorSample, MonitorSettings,
+    MonitorStatus, MonitorStorage, MonitorStorageStatus,
+};
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, Manager, State};
 use snapshot::{collect_project_snapshot, ProjectSnapshot};
 use tauri_plugin_opener::OpenerExt;
 
@@ -116,6 +122,80 @@ async fn check_for_update() -> Result<updater::UpdateCheck, String> {
 }
 
 #[tauri::command]
+fn monitor_settings_load(app: tauri::AppHandle) -> Result<MonitorSettings, String> {
+    load_settings(&app)
+}
+
+#[tauri::command]
+fn monitor_settings_save(
+    app: tauri::AppHandle,
+    monitor: State<'_, MonitorHandle>,
+    settings: MonitorSettings,
+) -> Result<MonitorSettings, String> {
+    let saved = save_settings(&app, settings)?;
+    monitor.apply_settings(&app, saved.clone())?;
+    Ok(saved)
+}
+
+#[tauri::command]
+fn monitor_start(app: tauri::AppHandle, monitor: State<'_, MonitorHandle>) -> Result<MonitorStatus, String> {
+    let mut settings = load_settings(&app)?;
+    settings.enabled = true;
+    let saved = save_settings(&app, settings)?;
+    monitor.apply_settings(&app, saved)?;
+    monitor.status()
+}
+
+#[tauri::command]
+fn monitor_stop(app: tauri::AppHandle, monitor: State<'_, MonitorHandle>) -> Result<MonitorStatus, String> {
+    let mut settings = load_settings(&app)?;
+    settings.enabled = false;
+    let saved = save_settings(&app, settings)?;
+    monitor.apply_settings(&app, saved)?;
+    monitor.status()
+}
+
+#[tauri::command]
+fn monitor_status(monitor: State<'_, MonitorHandle>) -> Result<MonitorStatus, String> {
+    monitor.status()
+}
+
+#[tauri::command]
+fn monitor_recent(monitor: State<'_, MonitorHandle>, range: String) -> Result<Vec<MonitorSample>, String> {
+    monitor.recent(&range)
+}
+
+#[tauri::command]
+fn monitor_alerts_list(monitor: State<'_, MonitorHandle>) -> Result<Vec<MonitorAlert>, String> {
+    monitor.alerts()
+}
+
+#[tauri::command]
+fn monitor_alert_dismiss(monitor: State<'_, MonitorHandle>, alert_id: String) -> Result<Vec<MonitorAlert>, String> {
+    monitor.dismiss_alert(&alert_id)
+}
+
+#[tauri::command]
+fn monitor_alert_mute_rule(monitor: State<'_, MonitorHandle>, rule_id: String) -> Result<Vec<MonitorAlert>, String> {
+    monitor.mute_rule(&rule_id)
+}
+
+#[tauri::command]
+fn monitor_alerts_query(monitor: State<'_, MonitorHandle>, query: AlertHistoryQuery) -> Result<Vec<MonitorAlert>, String> {
+    monitor.alerts_query(query)
+}
+
+#[tauri::command]
+fn monitor_storage_status(storage: State<'_, Arc<Mutex<MonitorStorage>>>) -> Result<MonitorStorageStatus, String> {
+    Ok(storage.lock().map_err(|_| "Monitor storage lock failed.".to_string())?.status())
+}
+
+#[tauri::command]
+fn monitor_clear_history(monitor: State<'_, MonitorHandle>) -> Result<(), String> {
+    monitor.clear_history()
+}
+
+#[tauri::command]
 async fn scan_artifacts(app: tauri::AppHandle, project_path: String) -> Result<artifacts::ArtifactScan, String> {
     tauri::async_runtime::spawn_blocking(move || {
         artifacts::scan_project_artifacts(&project_path, &mut |progress| {
@@ -130,7 +210,8 @@ async fn scan_artifacts(app: tauri::AppHandle, project_path: String) -> Result<a
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init());
 
     #[cfg(debug_assertions)]
     {
@@ -147,6 +228,16 @@ pub fn run() {
         .setup(|app| {
             let tray = menus::install_tray(app.handle())?;
             app.manage(tray);
+            let storage = MonitorStorage::open(app.handle());
+            let monitor = MonitorHandle::new(Arc::clone(&storage));
+            if let Ok(settings) = load_settings(app.handle()) {
+                let _ = monitor.hydrate(&settings);
+                if settings.enabled {
+                    let _ = monitor.apply_settings(app.handle(), settings);
+                }
+            }
+            app.manage(storage);
+            app.manage(monitor);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -165,7 +256,19 @@ pub fn run() {
             window_chrome,
             scan_artifacts,
             classify_folder,
-            check_for_update
+            check_for_update,
+            monitor_settings_load,
+            monitor_settings_save,
+            monitor_start,
+            monitor_stop,
+            monitor_status,
+            monitor_recent,
+            monitor_alerts_list,
+            monitor_alert_dismiss,
+            monitor_alert_mute_rule,
+            monitor_alerts_query,
+            monitor_storage_status,
+            monitor_clear_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
 
-const DEV_NAMES: &[&str] = &[
+pub(crate) const DEV_NAMES: &[&str] = &[
     "node", "npm", "pnpm", "yarn", "bun", "vite", "next", "next-server", "cargo", "rustc", "rust-analyzer", "python", "python3",
     "java", "gradle", "mvn", "go", "docker", "dockerd", "ruby", "php", "composer", "flutter", "dart", "beam.smp",
 ];

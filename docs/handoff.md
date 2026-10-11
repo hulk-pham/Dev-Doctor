@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-11. Branch `main`. Release `v0.3.0` is the unsigned Apple silicon build. Read `CONTRIBUTING.md` to verify from source.
+Updated 2026-10-11. Branch `main`. Release **v0.4.0** is the unsigned Apple silicon build (monitoring + SQLite history). Read `CONTRIBUTING.md` to verify from source.
 
 ## Product
 
@@ -8,7 +8,9 @@ Local-first macOS app. Tauri 2 owns the machine. React renders findings. No tele
 
 `Scan Project` runs diagnostics and the artifact walk together, on a background thread. The window stays usable. The loader covers the content under the project row for at least 3 seconds. The project selector stays visible and disabled.
 
-Workspace is two cards: Cleanup and Diagnostics. Sidebar: Workspace, Projects, Processes, Settings at the bottom. No status bar. Version is only on Settings.
+Workspace is two cards: Cleanup and Diagnostics, plus a **System health** tile on Overview. Sidebar: Workspace, Projects, **Processes** (process list + trends + alerts), Settings at the bottom. No status bar. Version is only on Settings.
+
+Background **sampling** (optional): Rust collector on an interval (`monitor-settings.json`). Samples and alerts persist in **`monitor-history.sqlite`** (scan/cleanup history stay JSON). Retention: raw 24 h → 1 min buckets 7 d → hourly up to **retention days** (Settings, default 30). If SQLite fails, sampling continues in memory with a banner on Processes/Settings. **Processes** tabs: list, **Trends** (current health + charts), **Alerts** (active + history filters). Watchdog + macOS notifications unchanged.
 
 Right inspector is full height, gray (`#f3f3f3`) against the white content. Its toggle is on the title row, 12px from the right, same size and `y` as the left menu toggle. The panel has no close button.
 
@@ -20,49 +22,33 @@ Right inspector is full height, gray (`#f3f3f3`) against the white content. Its 
 - Stop a process only after confirm. Refuse PID 0, PID 1, and executables under `/System`, `/usr`, `/bin`, `/sbin`.
 - CPU and memory on the process list are one observation, not a problem.
 - A process row is highlighted only when its cwd or command matches a scanned project path.
+- Watchdog alerts never kill, delete, or install on their own.
 
 ## Where to edit
 
 | Concern | File |
 | --- | --- |
-| Artifact names and safety | `src/diagnostics/artifact-catalog.json` |
-| Classify / what can be deleted | `src/diagnostics/artifacts.ts` |
-| Walk, measure, delete | `src-tauri/src/artifacts.rs` |
-| Process list and SIGTERM | `src-tauri/src/processes.rs` |
-| Match a process to a project | `src/diagnostics/processes.ts` |
-| Scan, history, delete state | `src/state/AppState.tsx` |
-| Shell, nav, inspector column | `src/components/layout/AppShell.tsx` |
-| Project row (fixed `h-12`) | `ProjectChromeBar.tsx`, `ProjectSelector.tsx`, `ui-layout.ts` |
-| Workspace cards and loader | `src/pages/WorkspacePage.tsx` |
-| Commands | `src-tauri/src/lib.rs` |
+| SQLite store / retention | `src-tauri/src/monitoring/store.rs` |
+| Collector + DB writes | `src-tauri/src/monitoring/collector.rs` |
+| Machine UI | `src/pages/ProcessesPage.tsx`, `src/pages/machine/panels.tsx` |
+| Monitor settings | `src-tauri/src/monitoring/settings.rs`, Settings page |
+| IPC | `src/services/tauri.ts` |
 
-Scan history: `scan-history.json`, includes `artifactListedBytes`. Cleanup history: `cleanup-history.json`.
+Scan history: `scan-history.json`. Monitor: `monitor-settings.json`, `monitor-history.sqlite`.
 
 ## Local (uncommitted)
 
-- **Menu bar icon:** a template icon (circle with a plus) on the right side of the macOS menu bar. Click it for Show Dev Doctor, Workspace, Projects, Processes, Scan, Refresh, Settings, Check for Updates, Quit. The left-side Dev Doctor menu still exists when the window is focused.
-- **Updates:** GitHub release check. Newer version opens a dialog with Download, Remind me later, Skip this version.
-- **Processes toolbar:** Dev / All · This project switch · name-or-port search · time · Pause · Refresh. Project row stays on every screen, including when no folder is selected. Toasts dismiss after 2.4s.
-- **Scan scope:** a parent of several projects is refused and listed. One nested project is opened. No manifest means no npm/Node checks. A manifest at the root is still one project (monorepo).
-- **No sample in UI** — `fixtures/sample-node-app` for tests/`cargo test` only.
-- **Docs:** README is screenshot, then value, then download. Showcase is a dark lockup with a larger logo and a Cleanup window at the lower left (`npm run screenshots:showcase`). Changelog, `docs/install.md`, and GitHub issue templates are in the repo. No GitHub Actions workflow. `docs/blog/` is gitignored.
-
-## Product docs (for agents)
-
-- `docs/product/design-principles.md` — journeys, terminology, done criteria
-- `docs/product/ux-review.md` — prioritized UX debt (2026-10-10 review)
-- `.cursor/rules/dev-doctor.mdc` + `product-design.mdc` (on UI paths) — product checklist
+- **P1–P3** monitor + watchdog + SQLite history (roadmap log).
+- Processes/Monitoring IA merge, perf fixes — see git diff.
 
 ## Next (product)
 
-- Commit when asked.
-- Optional: ⌘F find overlay; Cleanup footer offset with inspector width.
-- Do not start Docker, watchdog, or scheduled cleanup unless the user asks.
+- **Roadmap:** `docs/roadmap/06-monitor-diagnose-fix.md` — **P3 done** (Release marker A). Next **P4** AI BYOK.
 
 ## Not started
 
-Docker storage, background watchdog, scheduled cleanup, and ecosystems beyond the catalog. Do not add them unless the user asks.
+P4 onward (AI, fix planner). P6 beta packaging.
 
 ## Checks
 
-Logic: `npm test` and `cargo test --manifest-path src-tauri/Cargo.toml --lib`. UI: MCP on port 9223, only for the control that changed. Dev app: `npm run tauri dev`.
+Logic: `npm test`, `cargo test --lib`, `npm run typecheck`. UI: MCP Processes Trends/Alerts after change. Dev: `npm run tauri dev`.

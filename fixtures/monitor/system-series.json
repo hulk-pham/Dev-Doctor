@@ -1,0 +1,12 @@
+{
+  "note": "Synthetic system samples. Null means the metric could not be read; it must not be treated as zero.",
+  "intervalSeconds": 5,
+  "samples": [
+    { "at": "2026-10-11T05:00:00Z", "cpuPercent": 18.0, "memoryPressure": "normal", "swapBytes": 0, "diskFreeBytes": 96636764160 },
+    { "at": "2026-10-11T05:00:05Z", "cpuPercent": 92.4, "memoryPressure": "normal", "swapBytes": 0, "diskFreeBytes": 96636764160 },
+    { "at": "2026-10-11T05:00:10Z", "cpuPercent": 94.1, "memoryPressure": "warn", "swapBytes": 1073741824, "diskFreeBytes": 96636764160 },
+    { "at": "2026-10-11T05:00:15Z", "cpuPercent": null, "memoryPressure": null, "swapBytes": null, "diskFreeBytes": 96636764160 },
+    { "at": "2026-10-11T05:00:20Z", "cpuPercent": 21.7, "memoryPressure": "normal", "swapBytes": 1073741824, "diskFreeBytes": 96636764160 },
+    { "at": "2026-10-11T05:00:25Z", "cpuPercent": 19.2, "memoryPressure": "normal", "swapBytes": 1073741824, "diskFreeBytes": 8589934592, "note": "disk free fell below 10 GB" }
+  ]
+}

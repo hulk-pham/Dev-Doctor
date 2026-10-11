@@ -194,6 +194,112 @@ export const CATEGORY_ORDER: DiagnosticCategory[] = [
   "ports",
 ];
 
+export interface MemoryPressureSample {
+  vmPressure: number | null;
+  statusLevel: number | null;
+  swapUsedBytes: number | null;
+  swapTotalBytes: number | null;
+}
+
+export interface MonitorSystemSample {
+  cpuPercent: number | null;
+  memoryPressure: MemoryPressureSample | null;
+}
+
+export interface MonitorDiskSample {
+  mountPoint: string;
+  totalBytes: number | null;
+  availableBytes: number | null;
+}
+
+export interface MonitorProcessSample {
+  pid: number;
+  startTime: number;
+  exePath: string | null;
+  name: string;
+  cpuPercent: number | null;
+  memoryBytes: number | null;
+}
+
+export interface MonitorSample {
+  atMs: number;
+  system: MonitorSystemSample;
+  disk: MonitorDiskSample;
+  processes: MonitorProcessSample[];
+}
+
+export interface MonitorStatus {
+  running: boolean;
+  intervalSeconds: number;
+  sampleCount: number;
+  lastAtMs: number | null;
+  storageDegraded: boolean;
+  storageMessage: string | null;
+}
+
+export interface MonitorStorageStatus {
+  available: boolean;
+  degraded: boolean;
+  message: string | null;
+  sampleCount: number;
+  alertCount: number;
+}
+
+export interface AlertHistoryQuery {
+  state?: string;
+  ruleId?: string;
+  sinceMs?: number;
+  untilMs?: number;
+}
+
+export type MonitorAlertState = "active" | "recovered" | "dismissed";
+export type MonitorAlertSeverity = "info" | "warning" | "error";
+
+export interface MonitorAlert {
+  id: string;
+  ruleId: string;
+  causeKey: string;
+  state: MonitorAlertState;
+  severity: MonitorAlertSeverity;
+  title: string;
+  summary: string;
+  evidence: string[];
+  firedAtMs: number;
+  recoveredAtMs: number | null;
+  updatedAtMs: number;
+}
+
+export type MonitorAlertEventKind = "fired" | "updated" | "recovered";
+
+export interface MonitorAlertEvent {
+  kind: MonitorAlertEventKind;
+  alert: MonitorAlert;
+}
+
+export type RuleParams =
+  | { kind: "cpuHigh"; thresholdPercent: number }
+  | { kind: "memoryGrowth"; minIncreaseBytes: number; minIncreaseRatio: number }
+  | { kind: "lowDisk"; minAvailableBytes: number }
+  | { kind: "longRunningDev"; minAgeSeconds: number }
+  | { kind: "watchedPort"; ports: number[] }
+  | { kind: "artifactGrowth"; minIncreaseRatio: number };
+
+export interface MonitorRuleConfig {
+  id: string;
+  enabled: boolean;
+  severity: MonitorAlertSeverity;
+  minConsecutiveSamples: number;
+  cooldownSeconds: number;
+  params: RuleParams;
+}
+
+export interface MonitorSettings {
+  enabled: boolean;
+  intervalSeconds: number;
+  rules: MonitorRuleConfig[];
+  retentionDays: number;
+}
+
 export const DOCS = {
   nodeDownload: "https://nodejs.org/en/download",
   nodeEngines: "https://nodejs.org/api/packages.html#engines",

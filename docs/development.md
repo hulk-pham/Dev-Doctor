@@ -69,6 +69,33 @@ Rules return structured findings. One failed check does not cancel the rest of t
 
 **Ports & Processes.** A TCP port is entered on Diagnostics. `lsof` reports listeners. `ps` adds a process name. Stopping a process requires an in-app confirm.
 
+## Data flow
+
+Current (0.3.0):
+
+```text
+React pages --invoke--> lib.rs commands --> snapshot.rs, probe.rs, processes.rs, artifacts.rs
+     ^                                                   |
+     +-------- scan and cleanup history (JSON) <---------+  history.rs
+```
+
+Planned (monitor, see `docs/roadmap/06-monitor-diagnose-fix.md`):
+
+```text
+monitoring/collector.rs      background thread, interval, pause, bounded ring
+        | ProcessSample, SystemSample
+        v
+monitoring/rules.rs -> evaluator.rs -> alert_manager.rs    (P2)
+        |                                  |
+        v                                  v
+monitoring/store.rs            SQLite monitor-history.sqlite (samples, alerts, compaction)
+events: monitor-sample, monitor-alert
+        |                                  |
+        +------ monitor_recent ----------> React Monitoring view and System health card
+```
+
+Monitor state is owned by Rust. The webview subscribes to events and asks for history. It never polls raw samples in a loop, and it never runs a command string.
+
 ## Safe fixes
 
 | Action | What the app does |

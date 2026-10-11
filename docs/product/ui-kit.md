@@ -39,3 +39,12 @@ One flat row — class **`filterToolbar`** (`gap-1.5`, no gray panel, not `inset
 ## Banners
 
 **`insetBar`** only for next-step / measure-now strips — never toolbars.
+
+## Processes (machine) view
+
+One sidebar entry **Processes**. **`MachineSegments`**: underline tabs **Processes · Trends · Alerts** (same pattern as Workspace). One **`ScreenToolbar`** per tab:
+
+- **Processes:** Dev/All **`SegmentedFilter`**, search, list **`ToolbarStatus`** + Pause/Play list refresh + Refresh list.
+- **Trends / Alerts:** range or scope filter; **`ToolbarStatus`** = sampler time or “Sampler off”; Pause sampling + Refresh when sampler on.
+
+When sampler off on Trends/Alerts, one **`insetBar`** (Turn on) — not a second toolbar. **Storage degraded:** one **`insetBar`** on Processes (memory-only history). Trends: **`CurrentHealth`** three tiles, then one bordered chart panel. Alerts: **Active · History**; History adds state / time / rule **`SegmentedFilter`**s; one bordered list (chevron, **`Badge`**, `findingRowAccent`).

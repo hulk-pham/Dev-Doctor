@@ -20,12 +20,13 @@ They are busy and skeptical of tools that look like dashboards but hide the next
 | --- | --- | --- |
 | Fix the project | Select folder → Scan | Dashboard shows counts; one obvious next step (errors → Diagnostics, bytes → Cleanup) |
 | Free disk | Scan → Cleanup | Totals match measurement; uncertain rows visible but not deletable |
-| Stuck port / runaway dev server | Processes | Port on the row; find port selects process; stop only after confirm |
+| Stuck port / runaway dev server | Processes (Processes tab) | Port on the row; find port selects process; stop only after confirm |
+| Machine health / watchdog | Processes (Trends or Alerts tab) | Overview opens Trends; notifications open Alerts; sampler off is explicit |
 | Return later | Projects or inspector history | Same project reopens with last scan context |
 
 ## Product rules (non-negotiable)
 
-1. **One primary question per screen.** Workspace = “how is *this* project?” Processes = “what is running (and on which ports)?” Projects = “what have I scanned before?”
+1. **One primary question per screen.** Workspace = “how is *this* project?” Processes = “how is this Mac — what is running, and are trends/alerts worth acting on?” (three tabs, one nav item). Projects = “what have I scanned before?”
 2. **Current project is always obvious** wherever the answer depends on it. If the screen is global (Processes), say so in one line and show project ties on rows.
 3. **No silent navigation.** Actions do not change sidebar selection unless the user chose that destination.
 4. **Measured, not guessed.** Sizes, ports, and PIDs come from the OS; copy must not imply continuous monitoring or guaranteed completeness.

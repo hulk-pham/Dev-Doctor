@@ -36,6 +36,10 @@ Status: done. One sample of CPU or memory is labeled as observed, not a problem.
 
 Status: done. Scan history stores the measured folder total. Cleanup history stores reclaimed bytes and paths.
 
+## Next: monitor, diagnose, fix safely
+
+M5 onward is tracked task by task in [06-monitor-diagnose-fix.md](06-monitor-diagnose-fix.md): resource monitor, watchdog and alerts, monitoring history, AI with the user's own key, and a safe fix planner.
+
 ## Done for a milestone
 
 Logic has a unit test that was run. UI was checked on the dev window through the MCP bridge. The summary says what works, what was tested, and what is still out.

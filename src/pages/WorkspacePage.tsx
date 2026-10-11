@@ -1,4 +1,5 @@
-import { HardDrive, Stethoscope } from "lucide-react";
+import { ChartLine, HardDrive, Stethoscope } from "lucide-react";
+import { latestSystemLine } from "../lib/monitor-display";
 import { WorkspaceSegments } from "../components/layout/WorkspaceSegments";
 import { CleanupPage } from "./CleanupPage";
 import { DiagnosticsPage } from "./DiagnosticsPage";
@@ -91,7 +92,8 @@ function Dashboard() {
           {next.actionLabel}
         </Button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SystemHealthTile />
         <button type="button" onClick={() => state.setWorkspaceTab("cleanup")} className={summaryTile}>
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted">
             <HardDrive size={14} />
@@ -116,6 +118,33 @@ function Dashboard() {
           </p>
           <p className="mt-auto pt-2 text-[11px] text-muted">Last scan</p>
         </button>
+      </div>
+    </div>
+  );
+}
+
+function SystemHealthTile() {
+  const state = useAppState();
+  const running = Boolean(state.monitorStatus?.running);
+  const line = running ? latestSystemLine(state.monitorLatest) : "Monitoring off";
+
+  return (
+    <div className={summaryTile}>
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted">
+        <ChartLine size={14} />
+        System health
+      </div>
+      <p className="mt-2 text-[13px] leading-snug">{line}</p>
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+        {running ? (
+          <button type="button" className="text-[11px] text-accent hover:underline" onClick={() => state.openMachineTrends()}>
+            Open charts
+          </button>
+        ) : (
+          <Button size="sm" variant="secondary" onClick={() => void state.enableMonitoring()}>
+            Turn on
+          </Button>
+        )}
       </div>
     </div>
   );

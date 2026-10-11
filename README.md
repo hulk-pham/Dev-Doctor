@@ -4,7 +4,7 @@
 
 # Dev Doctor
 
-**A local-first macOS toolkit for developers to diagnose projects, reclaim disk space, and find processes holding ports.**
+**A local-first macOS app to diagnose projects, reclaim disk space, inspect dev processes, and watch system health — without sending your code anywhere.**
 
 <br>
 
@@ -12,82 +12,116 @@
 <img src="https://img.shields.io/badge/license-MIT-6f42c1" alt="MIT license">
 <img src="https://img.shields.io/badge/Tauri-v2-e6b800" alt="Tauri v2">
 
+[Download for macOS](https://github.com/hulk-pham/Dev-Doctor/releases/latest) · [Documentation](docs/documentation.md) · [Report a bug](https://github.com/hulk-pham/Dev-Doctor/issues/new?template=bug_report.yml) · [Contributing](#contributing)
+
 </div>
 
-<img src="docs/screenshots/product-showcase.png" width="100%" alt="Dev Doctor diagnostics window in front of the workspace overview and cleanup screens">
+## Table of Contents
 
-Scan your projects, identify cleanup opportunities, diagnose common environment issues, and inspect local development processes — all on your Mac.
+- [Screenshots](#screenshots)
+- [Why Dev Doctor?](#why-dev-doctor)
+- [Features](#features)
+- [Privacy & Safety](#privacy--safety)
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Documentation](#documentation)
+- [Build from Source](#build-from-source)
+- [Contributing](#contributing)
+- [License](#license)
 
-- 🔍 **Project diagnostics** — Find common toolchain, Git, and environment issues.
-- 🧹 **Safe cleanup** — Review reclaimable disk space before deleting generated files.
-- 🔌 **Port and process inspector** — Find which processes are using your development ports.
-- 🔒 **Privacy-first** — No account, no telemetry, and no project data sent to a server.
+## Screenshots
 
-[Download for macOS](https://github.com/hulk-pham/Dev-Doctor/releases/latest) · [Report a bug](https://github.com/hulk-pham/Dev-Doctor/issues/new?template=bug_report.yml) · [Contribute](#contribute)
+<img src="docs/screenshots/product-showcase.png" width="100%" alt="Dev Doctor workspace overview, cleanup, diagnostics, and process inspector">
 
-## Download
-
-The current release is **0.3.0** for Apple silicon.
-
-1. Download [Dev Doctor_0.3.0_aarch64.dmg](https://github.com/hulk-pham/Dev-Doctor/releases/latest) (or a later disk image on that page).
-2. Open the disk image and drag Dev Doctor to Applications.
-3. The build has no Apple Developer ID and is not notarized. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the source if you want to verify it. The first launch: right-click the app and choose **Open**.
-
-If Gatekeeper still blocks it, see [Install troubleshooting](docs/install.md). What changed in each release: [Changelog](CHANGELOG.md).
-
-## Get started
-
-1. Open Dev Doctor and select a project folder.
-2. Click **Scan Project**.
-3. On Overview, follow the next step into Cleanup or Diagnostics.
-4. Confirm any cleanup or process stop before it runs.
-
-You can also drop a folder on the window. Recent folders are in the project menu and under **Projects**. Screen-by-screen detail: [documentation](docs/documentation.md).
-
-| Screen | What you get |
-| --- | --- |
-| **Overview** | Reclaimable disk, error and warning counts, and one next step. |
-| **Cleanup** | Generated folders with sizes. Nothing is deleted until you confirm. |
-| **Diagnostics** | Toolchain, lockfiles, environment names, and Git. Each row says what is wrong and what to do. |
-| **Processes** | Dev servers on this Mac, with listen ports. Search by process name or port. |
-| **Projects** | Past scans, so you can reopen a folder with the last result. |
+The app runs natively on macOS with a quiet, editor-like UI: one project selector across every screen, clear next steps after a scan, and confirm dialogs before anything destructive runs.
 
 ## Why Dev Doctor?
 
-Development environments accumulate build artifacts, dependency folders, stale processes, and configuration problems. Dev Doctor brings those checks into one native app on your Mac.
+Development machines collect build output, heavy dependency folders, stale dev servers, and small configuration mistakes that are painful to chase by hand. Dev Doctor puts **measurement**, **diagnostics**, and **safe actions** in one place on your Mac.
 
-A folder that contains several projects is not scanned as one project. Open one of the projects it lists. A folder with no manifest does not get Node.js or npm checks.
+It is built for developers who already know their repo path and want answers like “what can I delete?”, “why won’t this run?”, and “what holds port 3000?” — not another dashboard that hides the next step.
 
-## Privacy
+A folder that contains several projects is listed so you can open one project at a time. A folder with no manifest does not get Node.js or npm checks.
 
-Scans stay on your Mac. There is no account and no telemetry. `.env` values are dropped before a snapshot exists and are not shown or saved. History is a JSON file in the app data folder (the path is on Settings).
+## Features
 
-**Check for Updates** asks GitHub for the latest release tag and notes. It does not send the project path or file contents. The only commands that change a project are the ones you confirm, such as `npm install --ignore-scripts` or `pnpm install --ignore-scripts`.
+| Area | What you get |
+| --- | --- |
+| **Overview** | Reclaimable disk, diagnostic counts, **system health** (CPU, memory pressure, disk), and one obvious next step. |
+| **Project cleanup** | Generated and reproducible folders with **measured** sizes. Nothing is deleted until you confirm paths and consequences. |
+| **Diagnostics** | Toolchain, lockfiles, environment variable **names**, Git, and ports — each row explains what is wrong and what to try next. |
+| **Processes** | Dev processes on this Mac with listen ports, search by name or port, and optional **resource trends** and **watchdog alerts** (local SQLite history when available). |
+| **Projects** | Scan history so you can reopen a folder with the last result. |
 
-## Build from source
+Background sampling (optional, off by default) watches CPU, memory pressure, disk, and dev processes on an interval you control. Alerts stay on the machine; they never kill or delete on their own.
 
-macOS, Node.js 20+, Rust, and Xcode Command Line Tools.
+## Privacy & Safety
+
+- **Local-first** — Scans, cleanup history, and monitoring samples stay in your app data folder. No account and no telemetry.
+- **Secrets** — `.env` **values** are dropped before a snapshot exists; only variable names may appear in diagnostics.
+- **Measured, not guessed** — Sizes and ports come from the OS. Copy does not imply continuous monitoring or a complete process list.
+- **Confirm before change** — Deletes, process stops, and package installs run only after an in-app confirm. Installs are limited to `npm install --ignore-scripts` or `pnpm install --ignore-scripts`.
+- **Updates** — **Check for Updates** asks GitHub for the latest release tag and notes. It does not upload project paths or file contents.
+
+History paths are shown on **Settings**. You can clear monitoring history there when you want a fresh start.
+
+## Installation
+
+**Requirements:** macOS 15+, Apple silicon build (see [Install troubleshooting](docs/install.md) for Intel and Gatekeeper).
+
+The current release is **0.4.0** for Apple silicon.
+
+1. Download the latest [Dev Doctor disk image](https://github.com/hulk-pham/Dev-Doctor/releases/latest) (`Dev Doctor_0.4.0_aarch64.dmg` or newer on that page).
+2. Open the disk image and drag **Dev Doctor** to **Applications**.
+3. First launch: the build is **unsigned and not notarized**. Right-click the app → **Open** → **Open** again. If macOS still blocks it, follow [docs/install.md](docs/install.md).
+
+Release notes: [CHANGELOG.md](CHANGELOG.md). To verify what you run, read [CONTRIBUTING.md](CONTRIBUTING.md) and build from source.
+
+## Getting Started
+
+1. Open Dev Doctor and **select a project folder** (or drop a folder on the window).
+2. Click **Scan Project** and wait for Overview — reclaimable bytes and diagnostic counts appear together.
+3. Follow the next step into **Cleanup** or **Diagnostics** from Overview.
+4. Use **Processes** when you need ports or dev servers on this machine; open **Trends** or **Alerts** from the same screen for optional sampling.
+5. Confirm any cleanup, install, or process stop before it runs.
+
+Recent folders appear in the project menu and under **Projects**.
+
+## Documentation
+
+| Doc | Purpose |
+| --- | --- |
+| [User guide](docs/documentation.md) | Screen-by-screen behavior and workflows |
+| [Install troubleshooting](docs/install.md) | Gatekeeper, quarantine, PATH, Intel Mac |
+| [Development](docs/development.md) | Architecture, tests, release build |
+| [Contributing](CONTRIBUTING.md) | Verify from source, PR expectations |
+| [Product roadmap](docs/roadmap/06-monitor-diagnose-fix.md) | Monitoring, alerts, and planned AI phases |
+
+## Build from Source
+
+**Requirements:** macOS, Node.js 20+, Rust, Xcode Command Line Tools.
 
 ```bash
+git clone https://github.com/hulk-pham/Dev-Doctor.git
+cd Dev-Doctor
 npm install
 npm run tauri dev
 ```
 
-A local `.app` is `npm run tauri build` (under `src-tauri/target/release/bundle/`). Tests and signing: [docs/development.md](docs/development.md).
+Release bundle: `npm run tauri build` (output under `src-tauri/target/release/bundle/`). Signing, tests, and agent workflow: [docs/development.md](docs/development.md).
 
-## Contribute
+## Contributing
 
 Issues and pull requests are welcome.
 
-- Bug or idea: open a [bug report](https://github.com/hulk-pham/Dev-Doctor/issues/new?template=bug_report.yml) or [feature request](https://github.com/hulk-pham/Dev-Doctor/issues/new?template=feature_request.yml).
-- How to read the source and build a copy yourself: [CONTRIBUTING.md](CONTRIBUTING.md).
-- Code change: fork the repo, branch from `main`, and open a pull request.
-- Run `npm test` and `npm run typecheck` before you push. Rust changes also need `cargo test --manifest-path src-tauri/Cargo.toml`.
-- There is no GitHub Actions workflow in this repo yet. Those commands are the check.
-- UI screenshots for this page are rebuilt with `npm run screenshots:showcase`.
+- **Bug or idea:** [Bug report](https://github.com/hulk-pham/Dev-Doctor/issues/new?template=bug_report.yml) or [feature request](https://github.com/hulk-pham/Dev-Doctor/issues/new?template=feature_request.yml).
+- **Code:** Fork, branch from `main`, open a PR. Run `npm test`, `npm run typecheck`, and for Rust changes `cargo test --manifest-path src-tauri/Cargo.toml`.
+- **README screenshots:** `npm run screenshots:showcase` (see [docs/development.md](docs/development.md)).
+
+There is no GitHub Actions workflow in this repo yet; those commands are the pre-push check.
 
 ## License
 
 [MIT](LICENSE), with a plain-language notice in front of the legal text.
 
-The notice is there because the release build has no Apple Developer ID and is not notarized. It asks you to read the source, names the files that limit deletes and commands, and restates that there is no warranty. It does not add restrictions. The MIT terms are the grant: you may use, copy, modify, and distribute the software, including the copyright notice. The authors are not liable for what the software does.
+The notice explains that the release build has no Apple Developer ID and is not notarized, points to the files that limit deletes and commands, and restates that there is no warranty. It does not add restrictions beyond MIT.

@@ -13,14 +13,58 @@ import {
   type ReactNode,
 } from "react";
 import { prependHistory, scanFromHistory, toHistoryEntry } from "../domain/history";
-import type { CleanupHistoryEntry, FixExecutionResult, FixSuggestion, PortInspection, ScanHistoryEntry, ScanResult } from "../domain/types";
+import type {
+  CleanupHistoryEntry,
+  FixExecutionResult,
+  FixSuggestion,
+  MonitorSample,
+  MonitorAlert,
+  MonitorAlertEvent,
+  AlertHistoryQuery,
+  MonitorSettings,
+  MonitorStatus,
+  MonitorStorageStatus,
+  PortInspection,
+  ScanHistoryEntry,
+  ScanResult,
+} from "../domain/types";
 import { classifyArtifacts, type ArtifactFinding } from "../diagnostics/artifacts";
 import { buildScanResult } from "../diagnostics/engine";
 import { validateFixRequest, validateProjectPath } from "../diagnostics/paths";
 import { validatePort } from "../diagnostics/ports";
 import { errorMessage } from "../lib/utils";
-import { appMetadata, checkForUpdate, classifyFolder, collectSnapshot, deleteArtifacts, executeFix, inspectPort, loadCleanupHistory, loadHistory, openAllowedUrl, saveCleanupHistory, saveHistory, scanArtifacts, type ArtifactScanProgress, type FolderLayout, type UpdateCheck } from "../services/tauri";
+import {
+  appMetadata,
+  checkForUpdate,
+  classifyFolder,
+  collectSnapshot,
+  deleteArtifacts,
+  executeFix,
+  inspectPort,
+  loadCleanupHistory,
+  loadHistory,
+  monitorAlertDismiss,
+  monitorAlertMuteRule,
+  monitorAlertsList,
+  monitorAlertsQuery,
+  monitorClearHistory,
+  monitorStorageStatus as fetchMonitorStorageStatus,
+  monitorSettingsLoad,
+  monitorSettingsSave,
+  monitorStart,
+  monitorStatus as fetchMonitorStatus,
+  monitorStop,
+  openAllowedUrl,
+  saveCleanupHistory,
+  saveHistory,
+  scanArtifacts,
+  type ArtifactScanProgress,
+  type FolderLayout,
+  type UpdateCheck,
+} from "../services/tauri";
 import { applyTheme, readSettings, UPDATE_REMIND_MS, writeSettings, type Settings } from "./settings";
+
+import type { MachineTab } from "../components/layout/MachineSegments";
 
 export type View = "workspace" | "projects" | "processes" | "settings";
 export type WorkspaceTab = "dashboard" | "diagnostics" | "cleanup";
@@ -29,6 +73,9 @@ export type DiagnosticsFocus = "all" | "error" | "warning" | "pass";
 interface AppStateValue {
   view: View;
   setView: (view: View) => void;
+  machineTab: MachineTab;
+  setMachineTab: (tab: MachineTab) => void;
+  openMachineTrends: () => void;
   workspaceTab: WorkspaceTab;
   setWorkspaceTab: (tab: WorkspaceTab) => void;
   inspectorOpen: boolean;
@@ -81,6 +128,22 @@ interface AppStateValue {
   openDocs: (url: string) => Promise<void>;
   runConfirmedFix: (suggestion: FixSuggestion) => Promise<FixExecutionResult>;
   removeArtifacts: (relativePaths: string[]) => Promise<void>;
+  monitorSettings: MonitorSettings | null;
+  monitorStatus: MonitorStatus | null;
+  monitorLatest: MonitorSample | null;
+  enableMonitoring: () => Promise<void>;
+  disableMonitoring: () => Promise<void>;
+  saveMonitorSettings: (settings: MonitorSettings) => Promise<void>;
+  syncMonitorSamples: (samples: MonitorSample[]) => void;
+  monitorAlerts: MonitorAlert[];
+  monitorStorageStatus: MonitorStorageStatus | null;
+  focusedAlertId: string | null;
+  focusMonitorAlert: (alertId: string | null) => void;
+  refreshMonitorAlerts: (query?: AlertHistoryQuery) => Promise<void>;
+  refreshMonitorStorageStatus: () => Promise<void>;
+  clearMonitorHistory: () => Promise<void>;
+  dismissMonitorAlert: (alertId: string) => Promise<void>;
+  muteMonitorRule: (ruleId: string) => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -99,6 +162,7 @@ function isHistoryEntry(value: unknown): value is ScanHistoryEntry {
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<View>("workspace");
+  const [machineTab, setMachineTab] = useState<MachineTab>("processes");
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("dashboard");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [cleanupListedBytes, setCleanupListedBytes] = useState<number | null>(null);
@@ -128,6 +192,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [diagnosticsFocus, setDiagnosticsFocus] = useState<DiagnosticsFocus>("all");
   const [processesPortQuery, setProcessesPortQuery] = useState<string | null>(null);
+  const [monitorSettings, setMonitorSettings] = useState<MonitorSettings | null>(null);
+  const [monitorStatus, setMonitorStatus] = useState<MonitorStatus | null>(null);
+  const [monitorLatest, setMonitorLatest] = useState<MonitorSample | null>(null);
+  const [monitorAlerts, setMonitorAlerts] = useState<MonitorAlert[]>([]);
+  const [monitorStorageStatus, setMonitorStorageStatus] = useState<MonitorStorageStatus | null>(null);
+  const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
   const desktop = isTauri();
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -159,6 +229,113 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     writeSettings(next);
     applyTheme(next.theme);
   }, []);
+
+  const refreshMonitorStatus = useCallback(async () => {
+    if (!desktop) return;
+    try {
+      const status = await fetchMonitorStatus();
+      setMonitorStatus(status);
+    } catch {
+      setMonitorStatus(null);
+    }
+  }, [desktop]);
+
+  const saveMonitorSettings = useCallback(
+    async (next: MonitorSettings) => {
+      if (!desktop) return;
+      const saved = await monitorSettingsSave(next);
+      setMonitorSettings(saved);
+      await refreshMonitorStatus();
+    },
+    [desktop, refreshMonitorStatus],
+  );
+
+  const enableMonitoring = useCallback(async () => {
+    if (!desktop) return;
+    const status = await monitorStart();
+    setMonitorStatus(status);
+    const settings = await monitorSettingsLoad();
+    setMonitorSettings(settings);
+    showToast("Monitoring on");
+  }, [desktop, showToast]);
+
+  const disableMonitoring = useCallback(async () => {
+    if (!desktop) return;
+    setMonitorStatus((current) => (current ? { ...current, running: false } : current));
+    setMonitorSettings((current) => (current ? { ...current, enabled: false } : current));
+    try {
+      const status = await monitorStop();
+      setMonitorStatus(status);
+    } catch {
+      await refreshMonitorStatus();
+    }
+    showToast("Monitoring off");
+  }, [desktop, showToast, refreshMonitorStatus]);
+
+  const syncMonitorSamples = useCallback((samples: MonitorSample[]) => {
+    const last = samples[samples.length - 1];
+    if (last) setMonitorLatest(last);
+  }, []);
+
+  const refreshMonitorAlerts = useCallback(async (query?: AlertHistoryQuery) => {
+    if (!desktop) return;
+    try {
+      const next = query ? await monitorAlertsQuery(query) : await monitorAlertsList();
+      setMonitorAlerts(next);
+    } catch {
+      setMonitorAlerts([]);
+    }
+  }, [desktop]);
+
+  const refreshMonitorStorageStatus = useCallback(async () => {
+    if (!desktop) return;
+    try {
+      setMonitorStorageStatus(await fetchMonitorStorageStatus());
+    } catch {
+      setMonitorStorageStatus(null);
+    }
+  }, [desktop]);
+
+  const clearMonitorHistory = useCallback(async () => {
+    if (!desktop) return;
+    await monitorClearHistory();
+    setMonitorAlerts([]);
+    setMonitorLatest(null);
+    await refreshMonitorStatus();
+    await refreshMonitorStorageStatus();
+    showToast("Monitoring history cleared");
+  }, [desktop, refreshMonitorStatus, refreshMonitorStorageStatus, showToast]);
+
+  const openMachineTrends = useCallback(() => {
+    setView("processes");
+    setMachineTab("trends");
+  }, []);
+
+  const focusMonitorAlert = useCallback((alertId: string | null) => {
+    setFocusedAlertId(alertId);
+    if (alertId) {
+      setView("processes");
+      setMachineTab("alerts");
+    }
+  }, []);
+
+  const dismissMonitorAlert = useCallback(
+    async (alertId: string) => {
+      if (!desktop) return;
+      setMonitorAlerts(await monitorAlertDismiss(alertId));
+      showToast("Alert dismissed");
+    },
+    [desktop, showToast],
+  );
+
+  const muteMonitorRule = useCallback(
+    async (ruleId: string) => {
+      if (!desktop) return;
+      setMonitorAlerts(await monitorAlertMuteRule(ruleId));
+      showToast("Rule muted");
+    },
+    [desktop, showToast],
+  );
 
   const scanPath = useCallback(
     async (target: string) => {
@@ -318,6 +495,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const openProcessesFindPort = useCallback((port: string) => {
     setProcessesPortQuery(port.trim());
     setView("processes");
+    setMachineTab("processes");
   }, []);
 
   const clearProcessesPortQuery = useCallback(() => setProcessesPortQuery(null), []);
@@ -634,10 +812,116 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     };
   }, [desktop]);
 
+  useEffect(() => {
+    if (!desktop) return;
+    let alive = true;
+    void monitorSettingsLoad()
+      .then((settings) => {
+        if (alive) setMonitorSettings(settings);
+      })
+      .catch(() => {
+        if (alive) setMonitorSettings(null);
+      });
+    void refreshMonitorStatus();
+    void refreshMonitorAlerts();
+    void refreshMonitorStorageStatus();
+    return () => {
+      alive = false;
+    };
+  }, [desktop, refreshMonitorStatus, refreshMonitorAlerts, refreshMonitorStorageStatus]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let unlisten: (() => void) | undefined;
+    let alive = true;
+    void listen<MonitorSample>("monitor-sample", (event) => {
+      if (!alive) return;
+      const tick = event.payload;
+      setMonitorLatest(tick);
+      setMonitorStatus((current) =>
+        current?.running
+          ? { ...current, lastAtMs: tick.atMs }
+          : current,
+      );
+    }).then((stop) => {
+      if (alive) unlisten = stop;
+      else stop();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, [desktop]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let unlisten: (() => void) | undefined;
+    let alive = true;
+    void listen<MonitorAlertEvent>("monitor-alert", (event) => {
+      if (!alive) return;
+      setMonitorAlerts((current) => {
+        const next = event.payload.alert;
+        const without = current.filter((row) => row.id !== next.id);
+        return [...without, next].sort((a, b) => b.updatedAtMs - a.updatedAtMs);
+      });
+      if (event.payload.kind === "fired") {
+        setFocusedAlertId(event.payload.alert.id);
+        setView("processes");
+        setMachineTab("alerts");
+      }
+    }).then((stop) => {
+      if (alive) unlisten = stop;
+      else stop();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, [desktop]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let listener: { unregister: () => Promise<void> } | undefined;
+    void import("@tauri-apps/plugin-notification")
+      .then(({ onAction }) =>
+        onAction(() => {
+          setView("processes");
+          setMachineTab("alerts");
+        }),
+      )
+      .then((handle) => {
+        listener = handle;
+      })
+      .catch(() => undefined);
+    return () => {
+      void listener?.unregister();
+    };
+  }, [desktop]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let unlisten: (() => void) | undefined;
+    let alive = true;
+    void listen<string>("monitor-alert-focus", (event) => {
+      if (!alive) return;
+      focusMonitorAlert(event.payload);
+    }).then((stop) => {
+      if (alive) unlisten = stop;
+      else stop();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, [desktop, focusMonitorAlert]);
+
   const value = useMemo<AppStateValue>(
     () => ({
       view,
       setView,
+      machineTab,
+      setMachineTab,
+      openMachineTrends,
       workspaceTab,
       setWorkspaceTab,
       inspectorOpen,
@@ -690,9 +974,27 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       openDocs,
       runConfirmedFix,
       removeArtifacts,
+      monitorSettings,
+      monitorStatus,
+      monitorLatest,
+      enableMonitoring,
+      disableMonitoring,
+      saveMonitorSettings,
+      syncMonitorSamples,
+      monitorAlerts,
+      monitorStorageStatus,
+      refreshMonitorStorageStatus,
+      clearMonitorHistory,
+      focusedAlertId,
+      focusMonitorAlert,
+      refreshMonitorAlerts,
+      dismissMonitorAlert,
+      muteMonitorRule,
     }),
     [
       view,
+      machineTab,
+      openMachineTrends,
       workspaceTab,
       inspectorOpen,
       cleanupListedBytes,
@@ -742,6 +1044,27 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       openDocs,
       runConfirmedFix,
       removeArtifacts,
+      monitorSettings,
+      monitorStatus,
+      monitorLatest,
+      enableMonitoring,
+      disableMonitoring,
+      saveMonitorSettings,
+      syncMonitorSamples,
+      monitorAlerts,
+      monitorStorageStatus,
+      refreshMonitorStorageStatus,
+      clearMonitorHistory,
+      focusedAlertId,
+      focusMonitorAlert,
+      refreshMonitorAlerts,
+      refreshMonitorStorageStatus,
+      clearMonitorHistory,
+      dismissMonitorAlert,
+      muteMonitorRule,
+      monitorStorageStatus,
+      refreshMonitorStorageStatus,
+      clearMonitorHistory,
     ],
   );
 
