@@ -14,6 +14,7 @@
 | Layout, title row, nav width | `ui-chrome.mdc` |
 | Product journeys / ux debt | `design-principles.md`, `ux-review.md` |
 | Diagnostic rules / Rust | `diagnostics.mdc` |
+| AI BYOK / Keychain / Send to AI | `ai-byok.mdc` |
 | Desktop window verify | `debug-harness.mdc` |
 
 **Chrome regression:** menu toggle `left = zoom.x + zoom.width + 14`; same `y`/`height` as green button.

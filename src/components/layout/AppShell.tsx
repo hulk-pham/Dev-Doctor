@@ -1,5 +1,11 @@
 import { Activity, FolderGit2, LayoutDashboard, PanelLeft, PanelRight, Settings } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import {
+  clampInspectorWidth,
+  INSPECTOR_WIDTH_DEFAULT,
+  loadInspectorWidth,
+  saveInspectorWidth,
+} from "../../lib/inspector-width";
 import { cn } from "../../lib/utils";
 import { UpdatePrompt } from "../UpdatePrompt";
 import { ProjectChromeBar } from "./ProjectChromeBar";
@@ -8,8 +14,8 @@ import { useAppState, type View } from "../../state/AppState";
 import { ProcessesPage } from "../../pages/ProcessesPage";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { SettingsPage } from "../../pages/SettingsPage";
-import { DiagnosisPanel } from "../ai/DiagnosisPanel";
-import { ProjectInspector, WorkspacePage } from "../../pages/WorkspacePage";
+import { SideInspector } from "./SideInspector";
+import { WorkspacePage } from "../../pages/WorkspacePage";
 
 const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
   { id: "workspace", label: "Workspace", icon: LayoutDashboard },
@@ -21,6 +27,44 @@ export function AppShell() {
   const state = useAppState();
   const [menuExpanded, setMenuExpanded] = useState(false);
   const [buttons, setButtons] = useState<ChromeButton[]>([]);
+  const [inspectorWidth, setInspectorWidth] = useState(INSPECTOR_WIDTH_DEFAULT);
+  const [inspectorResizing, setInspectorResizing] = useState(false);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    setInspectorWidth(loadInspectorWidth());
+  }, []);
+
+  const onInspectorResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!state.inspectorOpen) return;
+      event.preventDefault();
+      resizeRef.current = { startX: event.clientX, startWidth: inspectorWidth };
+      setInspectorResizing(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [inspectorWidth, state.inspectorOpen],
+  );
+
+  const onInspectorResizePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const session = resizeRef.current;
+    if (!session) return;
+    const next = clampInspectorWidth(session.startWidth + (session.startX - event.clientX));
+    setInspectorWidth(next);
+  }, []);
+
+  const endInspectorResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!resizeRef.current) return;
+    resizeRef.current = null;
+    setInspectorResizing(false);
+    setInspectorWidth((current) => {
+      saveInspectorWidth(current);
+      return current;
+    });
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
 
   const zoom = buttons.find((button) => button.name === "zoom");
   const headerHeight = zoom ? zoom.y * 2 + zoom.height : 40;
@@ -35,14 +79,6 @@ export function AppShell() {
   const inspectorToggleStyle = zoom
     ? { right: 12, top: zoom.y, width: zoom.height, height: zoom.height }
     : { right: 12, top: 7, width: 16, height: 16 };
-
-  const lastView = useRef(state.view);
-  useEffect(() => {
-    if (state.view === "processes" && lastView.current !== "processes") {
-      state.setInspectorOpen(false);
-    }
-    lastView.current = state.view;
-  }, [state.view, state]);
 
   useEffect(() => {
     if (!state.desktop) return;
@@ -71,15 +107,7 @@ export function AppShell() {
         </button>
         <button
           type="button"
-          title={
-            state.inspectorOpen
-              ? state.diagnosisSession
-                ? "Hide diagnosis"
-                : "Hide project info"
-              : state.diagnosisSession
-                ? "Show diagnosis"
-                : "Show project info"
-          }
+          title={state.inspectorOpen ? "Hide side panel" : "Show side panel"}
           aria-pressed={state.inspectorOpen}
           onClick={() => state.setInspectorOpen((open) => !open)}
           style={inspectorToggleStyle}
@@ -125,14 +153,32 @@ export function AppShell() {
         </main>
       </div>
       <aside
-        style={{ width: state.inspectorOpen ? 288 : 0 }}
+        style={{ width: state.inspectorOpen ? inspectorWidth : 0 }}
         className={cn(
-          "h-full min-w-0 shrink-0 self-stretch overflow-hidden bg-sidebar transition-[width] duration-200",
+          "relative h-full min-w-0 shrink-0 self-stretch overflow-hidden bg-sidebar",
+          !inspectorResizing && "transition-[width] duration-200",
           state.inspectorOpen ? "border-l border-border" : "border-l-0",
         )}
       >
-        <div className="h-full overflow-y-auto px-4 py-4">
-          {state.diagnosisSession ? <DiagnosisPanel /> : <ProjectInspector />}
+        {state.inspectorOpen ? (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize side panel"
+            title="Drag to resize panel"
+            className={cn(
+              "absolute left-0 top-0 z-10 h-full w-2 -translate-x-1/2 touch-none select-none",
+              "cursor-col-resize hover:bg-accent/15 active:bg-accent/25",
+              inspectorResizing && "bg-accent/20",
+            )}
+            onPointerDown={onInspectorResizePointerDown}
+            onPointerMove={onInspectorResizePointerMove}
+            onPointerUp={endInspectorResize}
+            onPointerCancel={endInspectorResize}
+          />
+        ) : null}
+        <div className="flex h-full min-w-0 flex-col px-3 pb-3 pt-1.5">
+          {state.inspectorOpen ? <SideInspector /> : null}
         </div>
       </aside>
       </div>

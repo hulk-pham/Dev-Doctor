@@ -18,7 +18,21 @@ const DENIED_PREFIXES: &[&str] = &[
     "/var/root",
 ];
 
-pub const ALLOWED_AI_HOSTS: &[&str] = &["https://api.openai.com"];
+pub const ALLOWED_AI_HOSTS: &[&str] = &[
+    "https://api.openai.com",
+    "https://api.anthropic.com",
+    "https://generativelanguage.googleapis.com",
+    "http://127.0.0.1:11434",
+    "http://localhost:11434",
+    "https://api.groq.com",
+    "https://api.together.xyz",
+    "https://openrouter.ai",
+    "https://openrouter.ai/api/v1/chat/completions",
+];
+
+fn is_allowed_azure_openai_url(url: &str) -> bool {
+    url.starts_with("https://") && url.contains(".openai.azure.com/")
+}
 
 pub const ALLOWED_URLS: &[&str] = &[
     "https://nodejs.org/en/download",
@@ -80,11 +94,39 @@ pub fn validate_fix_path(input: &str) -> Result<PathBuf, String> {
 }
 
 pub fn ensure_allowed_ai_host(url: &str) -> Result<(), String> {
-    if ALLOWED_AI_HOSTS.iter().any(|prefix| url.starts_with(prefix)) {
-        Ok(())
-    } else {
-        Err("That AI provider host is not allowlisted.".into())
+    #[cfg(test)]
+    {
+        let lower = url.to_lowercase();
+        if lower.starts_with("http://127.0.0.1:") || lower.starts_with("http://localhost:") {
+            return Ok(());
+        }
     }
+    if ALLOWED_AI_HOSTS.iter().any(|prefix| url.starts_with(prefix)) {
+        return Ok(());
+    }
+    if is_allowed_azure_openai_url(url) {
+        return Ok(());
+    }
+    Err("That AI provider host is not allowlisted.".into())
+}
+
+pub fn validate_ollama_endpoint(url: &str) -> Result<(), String> {
+    let lower = url.trim().to_lowercase();
+    if lower.starts_with("http://127.0.0.1") || lower.starts_with("http://localhost") {
+        return Ok(());
+    }
+    Err("Ollama endpoint must use http://127.0.0.1 or http://localhost.".into())
+}
+
+pub fn validate_azure_resource_endpoint(base_url: &str) -> Result<(), String> {
+    let trimmed = base_url.trim().trim_end_matches('/');
+    if !trimmed.starts_with("https://") {
+        return Err("Azure endpoint must start with https://.".into());
+    }
+    if !trimmed.contains(".openai.azure.com") {
+        return Err("Azure endpoint must be your *.openai.azure.com resource URL.".into());
+    }
+    Ok(())
 }
 
 pub fn ensure_allowed_url(url: &str) -> Result<(), String> {

@@ -1,0 +1,39 @@
+---
+description: AI BYOK — Keychain, Rust IPC, OpenAI; avoid mock keyring and UI freeze
+globs: src-tauri/src/ai/**/*.rs,src-tauri/Cargo.toml,src-tauri/src/lib.rs,src/ai/**/*.ts,src/components/ai/**/*.tsx,src/state/AppState.tsx
+alwaysApply: false
+---
+
+# AI BYOK (local-first)
+
+Requests and keys stay in **Rust**. The webview never receives the API key after save. Only allowlisted hosts (`security.rs` → `ALLOWED_AI_HOSTS`). Provider id + model (+ optional `baseUrl` for Ollama/Azure) live in `ai-settings.json`; one Keychain slot per provider (`credentials.rs`).
+
+## Keyring (macOS)
+
+- Dependency: `keyring = { version = "3", features = ["apple-native"] }` on macOS targets.
+- **Without a platform feature, keyring uses a mock store** — `set_password` appears to succeed but `get_password` returns `NoEntry`. UI shows “Not set” forever.
+- When adding Linux/Windows builds later, enable `linux-native-*` / `windows-native` explicitly; never ship default `keyring = "3"` alone.
+- Keep `credentials.rs` integration test `keychain_store_read_delete_roundtrip` green after any keyring change.
+
+## Tauri commands (no UI freeze)
+
+- **Never** run OpenAI HTTP (`ureq`), Keychain read/write, or other multi-second work in a **sync** `#[tauri::command] fn`.
+- **`ai_chat` / `ai_diagnose`:** async HTTP via `reqwest` inside a cancellable task (`AiInflight` + `ai_cancel_inflight`). **`ai_test_connection`** still uses `spawn_blocking` + sync fake/HTTP path.
+- UI **Cancel** must call `aiCancelInflight()` (via `cancelAiChatRequest`) in addition to ignoring stale generations.
+- HTTP client timeout: ~45s max; map errors to `AiError` codes already used in the UI.
+
+## Frontend
+
+- After setting `sending: true` for AI, **yield one frame** (`requestAnimationFrame`) before `invoke`, so “Sending…” paints before the blocking wait (defense in depth).
+- Do not toast “key saved” unless IPC returns `configured: true`.
+- **Explain with AI** on desktop opens the chat panel and **sends context immediately** when a key is configured; without a key, open chat and show the settings link (no context draft step).
+
+## Tests
+
+- Rust: fake provider for diagnosis schema; **plus** real Keychain roundtrip test on macOS (see `credentials.rs`).
+- JS: context-builder / fix-plan / response-schema only — no live API in CI.
+- **Manual QA / `tauri dev`:** provider `fake` (`mock.rs`) skips Keychain and network; only when Rust `debug_assertions` and Vite `import.meta.env.DEV`. Chat panel **Use mock AI** and Settings dropdown entry are dev-only — not in release builds.
+
+# Notes
+
+- 2026-10-11: Mock keyring + sync `ai_diagnose` caused “Save key” / “Not set” and WKWebView lag on Send. Fixed with `apple-native` and `spawn_blocking`.

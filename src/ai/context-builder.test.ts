@@ -17,7 +17,7 @@ const alert: MonitorAlert = {
 };
 
 describe("context-builder", () => {
-  it("includes alert and metrics by default, path opt-in", () => {
+  it("includes alert and metrics by default", () => {
     const items = buildAlertContextItems({
       alert,
       latestSample: {
@@ -26,14 +26,12 @@ describe("context-builder", () => {
         disk: { mountPoint: "/", totalBytes: 100, availableBytes: 50 },
         processes: [],
       },
-      projectPath: "/Users/dev/app",
     });
     expect(items.find((item) => item.id === "alert-core")?.included).toBe(true);
     expect(items.find((item) => item.id === "metrics-latest")?.included).toBe(true);
-    expect(items.find((item) => item.id === "project-path")?.included).toBe(false);
+    expect(items.some((item) => item.id === "project-path")).toBe(false);
     const text = composeContextText(items);
     expect(text).toContain("High CPU");
-    expect(text).not.toContain("/Users/dev/app");
   });
 
   it("wraps log content as data, not instructions (P5.9)", () => {

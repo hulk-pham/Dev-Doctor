@@ -1,12 +1,25 @@
+use crate::ai::adapters::{
+    azure_chat_url, post_openai_chat_async, AnthropicAdapter, AuthStyle, GeminiAdapter, OpenAiCompatAdapter,
+    GROQ_CHAT_URL, OLLAMA_DEFAULT_URL, OPENROUTER_CHAT_URL, TOGETHER_CHAT_URL,
+};
 use crate::ai::settings::AiSettings;
-use serde::Deserialize;
-use std::time::Duration;
 
-pub const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
+pub use crate::ai::adapters::OPENAI_CHAT_URL;
 pub const MAX_CONTEXT_CHARS: usize = 48_000;
 
 pub trait LlmProvider: Send + Sync {
-    fn complete(&self, model: &str, system: &str, user: &str, api_key: &str) -> Result<String, ProviderError>;
+    fn complete(&self, model: &str, system: &str, user: &str, api_key: &str) -> Result<String, ProviderError> {
+        self.complete_multi(model, system, &[("user", user)], api_key, true)
+    }
+
+    fn complete_multi(
+        &self,
+        model: &str,
+        system: &str,
+        turns: &[(&str, &str)],
+        api_key: &str,
+        json_object: bool,
+    ) -> Result<String, ProviderError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,83 +33,71 @@ pub enum ProviderError {
     Http(u16, String),
 }
 
-pub struct OpenAiProvider;
+struct RoutedProvider {
+    settings: AiSettings,
+}
 
-impl LlmProvider for OpenAiProvider {
-    fn complete(&self, model: &str, system: &str, user: &str, api_key: &str) -> Result<String, ProviderError> {
-        crate::security::ensure_allowed_ai_host(OPENAI_CHAT_URL)
-            .map_err(|message| ProviderError::Network(message))?;
-        let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(60)).build();
-        let body = serde_json::json!({
-            "model": model,
-            "temperature": 0.2,
-            "response_format": { "type": "json_object" },
-            "messages": [
-                { "role": "system", "content": system },
-                { "role": "user", "content": user }
-            ]
-        });
-        let response = agent
-            .post(OPENAI_CHAT_URL)
-            .set("Authorization", &format!("Bearer {api_key}"))
-            .set("Content-Type", "application/json")
-            .send_json(body);
-        match response {
-            Ok(response) => {
-                let status = response.status();
-                if status == 401 {
-                    return Err(ProviderError::Unauthorized);
+impl LlmProvider for RoutedProvider {
+    fn complete_multi(
+        &self,
+        model: &str,
+        system: &str,
+        turns: &[(&str, &str)],
+        api_key: &str,
+        json_object: bool,
+    ) -> Result<String, ProviderError> {
+        match self.settings.provider.as_str() {
+            "anthropic" => AnthropicAdapter.complete_multi(model, system, turns, api_key, json_object),
+            "gemini" => GeminiAdapter.complete_multi(model, system, turns, api_key, json_object),
+            "azure" => {
+                let base = self
+                    .settings
+                    .base_url
+                    .as_deref()
+                    .ok_or_else(|| ProviderError::Network("Azure OpenAI needs a resource endpoint.".into()))?;
+                let url = azure_chat_url(base, model).map_err(ProviderError::Network)?;
+                OpenAiCompatAdapter {
+                    url,
+                    auth: AuthStyle::AzureApiKey,
                 }
-                if status == 429 {
-                    return Err(ProviderError::RateLimit);
-                }
-                if status == 404 {
-                    return Err(ProviderError::UnsupportedModel(model.to_string()));
-                }
-                if !(200..300).contains(&status) {
-                    let text = response.into_string().unwrap_or_default();
-                    return Err(ProviderError::Http(status, text));
-                }
-                let parsed: OpenAiChatResponse = response
-                    .into_json()
-                    .map_err(|error| ProviderError::InvalidResponse(error.to_string()))?;
-                parsed
-                    .choices
-                    .first()
-                    .and_then(|choice| choice.message.content.clone())
-                    .ok_or_else(|| ProviderError::InvalidResponse("Missing assistant content.".into()))
+                .complete_multi(model, system, turns, api_key, json_object)
             }
-            Err(ureq::Error::Status(401, _)) => Err(ProviderError::Unauthorized),
-            Err(ureq::Error::Status(429, _)) => Err(ProviderError::RateLimit),
-            Err(ureq::Error::Status(404, _)) => Err(ProviderError::UnsupportedModel(model.to_string())),
-            Err(ureq::Error::Status(code, response)) => {
-                Err(ProviderError::Http(code, response.into_string().unwrap_or_default()))
-            }
-            Err(error) => {
-                let message = error.to_string();
-                if message.to_lowercase().contains("timeout") {
-                    Err(ProviderError::Timeout)
-                } else {
-                    Err(ProviderError::Network(message))
+            "ollama" => {
+                let url = self
+                    .settings
+                    .base_url
+                    .clone()
+                    .unwrap_or_else(|| OLLAMA_DEFAULT_URL.into());
+                crate::security::validate_ollama_endpoint(&url)
+                    .map_err(|message| ProviderError::Network(message))?;
+                OpenAiCompatAdapter {
+                    url,
+                    auth: AuthStyle::Bearer,
                 }
+                .complete_multi(model, system, turns, api_key, json_object)
             }
+            "groq" => OpenAiCompatAdapter {
+                url: GROQ_CHAT_URL.into(),
+                auth: AuthStyle::Bearer,
+            }
+            .complete_multi(model, system, turns, api_key, json_object),
+            "together" => OpenAiCompatAdapter {
+                url: TOGETHER_CHAT_URL.into(),
+                auth: AuthStyle::Bearer,
+            }
+            .complete_multi(model, system, turns, api_key, json_object),
+            "openrouter" => OpenAiCompatAdapter {
+                url: OPENROUTER_CHAT_URL.into(),
+                auth: AuthStyle::Bearer,
+            }
+            .complete_multi(model, system, turns, api_key, json_object),
+            _ => OpenAiCompatAdapter {
+                url: OPENAI_CHAT_URL.into(),
+                auth: AuthStyle::Bearer,
+            }
+            .complete_multi(model, system, turns, api_key, json_object),
         }
     }
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAiChatResponse {
-    choices: Vec<OpenAiChoice>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAiChoice {
-    message: OpenAiMessage,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenAiMessage {
-    content: Option<String>,
 }
 
 pub struct FakeProvider {
@@ -104,8 +105,106 @@ pub struct FakeProvider {
 }
 
 impl LlmProvider for FakeProvider {
-    fn complete(&self, _model: &str, _system: &str, _user: &str, _api_key: &str) -> Result<String, ProviderError> {
-        Ok(self.response.clone())
+    fn complete_multi(
+        &self,
+        _model: &str,
+        _system: &str,
+        _turns: &[(&str, &str)],
+        _api_key: &str,
+        json_object: bool,
+    ) -> Result<String, ProviderError> {
+        if json_object {
+            Ok(self.response.clone())
+        } else {
+            Ok("Here is a conversational follow-up from the fake provider.".into())
+        }
+    }
+}
+
+pub async fn complete_multi_async(
+    settings: &AiSettings,
+    model: &str,
+    system: &str,
+    turns: &[(&str, &str)],
+    api_key: &str,
+    json_object: bool,
+) -> Result<String, ProviderError> {
+    if settings.provider == "fake" {
+        return FakeProvider {
+            response: fake_diagnosis_json(),
+        }
+        .complete_multi(model, system, turns, api_key, json_object);
+    }
+    match settings.provider.as_str() {
+        "anthropic" => {
+            AnthropicAdapter.complete_multi_async(model, system, turns, api_key, json_object).await
+        }
+        "gemini" => GeminiAdapter.complete_multi_async(model, system, turns, api_key, json_object).await,
+        "azure" => {
+            let base = settings
+                .base_url
+                .as_deref()
+                .ok_or_else(|| ProviderError::Network("Azure OpenAI needs a resource endpoint.".into()))?;
+            let url = azure_chat_url(base, model).map_err(ProviderError::Network)?;
+            post_openai_chat_async(&url, model, system, turns, api_key, json_object, AuthStyle::AzureApiKey).await
+        }
+        "ollama" => {
+            let url = settings
+                .base_url
+                .clone()
+                .unwrap_or_else(|| OLLAMA_DEFAULT_URL.into());
+            crate::security::validate_ollama_endpoint(&url)
+                .map_err(ProviderError::Network)?;
+            post_openai_chat_async(&url, model, system, turns, api_key, json_object, AuthStyle::Bearer).await
+        }
+        "groq" => {
+            post_openai_chat_async(
+                GROQ_CHAT_URL,
+                model,
+                system,
+                turns,
+                api_key,
+                json_object,
+                AuthStyle::Bearer,
+            )
+            .await
+        }
+        "together" => {
+            post_openai_chat_async(
+                TOGETHER_CHAT_URL,
+                model,
+                system,
+                turns,
+                api_key,
+                json_object,
+                AuthStyle::Bearer,
+            )
+            .await
+        }
+        "openrouter" => {
+            post_openai_chat_async(
+                OPENROUTER_CHAT_URL,
+                model,
+                system,
+                turns,
+                api_key,
+                json_object,
+                AuthStyle::Bearer,
+            )
+            .await
+        }
+        _ => {
+            post_openai_chat_async(
+                OPENAI_CHAT_URL,
+                model,
+                system,
+                turns,
+                api_key,
+                json_object,
+                AuthStyle::Bearer,
+            )
+            .await
+        }
     }
 }
 
@@ -115,7 +214,9 @@ pub fn provider_for(settings: &AiSettings) -> Box<dyn LlmProvider> {
             response: fake_diagnosis_json(),
         });
     }
-    Box::new(OpenAiProvider)
+    Box::new(RoutedProvider {
+        settings: settings.clone(),
+    })
 }
 
 pub(crate) fn fake_diagnosis_json() -> String {

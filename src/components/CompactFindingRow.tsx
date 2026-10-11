@@ -1,5 +1,5 @@
 import { ChevronDown, Copy, ExternalLink, Wrench } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DiagnosticFinding } from "../domain/types";
 import { statusLabel } from "../diagnostics/engine";
 import { findingRowAccent, findingTone } from "../lib/finding-severity";
@@ -11,20 +11,36 @@ import { cn } from "../lib/utils";
 
 export function CompactFindingRow({
   finding,
+  highlighted,
   onExecute,
   onExplain,
 }: {
   finding: DiagnosticFinding;
+  highlighted?: boolean;
   onExecute: (finding: DiagnosticFinding) => void;
   onExplain?: (finding: DiagnosticFinding) => void;
 }) {
   const { copyText, openDocs } = useAppState();
-  const [open, setOpen] = useState(finding.severity === "error");
+  const rowRef = useRef<HTMLLIElement>(null);
+  const [open, setOpen] = useState(finding.severity === "error" || Boolean(highlighted));
+
+  useEffect(() => {
+    if (!highlighted) return;
+    setOpen(true);
+    rowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [highlighted]);
   const fix = finding.fix;
   const tone = findingTone(finding);
 
   return (
-    <li className={cn("border-b border-border last:border-b-0", findingRowAccent(tone))}>
+    <li
+      ref={rowRef}
+      className={cn(
+        "border-b border-border last:border-b-0",
+        findingRowAccent(tone),
+        highlighted && "ring-2 ring-inset ring-accent/60",
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

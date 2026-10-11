@@ -32,6 +32,12 @@ export function DiagnosticsPage() {
     setFocus(map[state.diagnosticsFocus]);
   }, [state.diagnosticsFocus]);
 
+  useEffect(() => {
+    if (!state.diagnosticsHighlightFindingId) return;
+    const timer = window.setTimeout(() => state.clearDiagnosticsHighlight(), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [state.diagnosticsHighlightFindingId, state.clearDiagnosticsHighlight]);
+
   const findings = useMemo(() => {
     const source = state.scan?.findings ?? [];
     return source.filter((finding) => {
@@ -123,8 +129,9 @@ export function DiagnosticsPage() {
                 <CompactFindingRow
                   key={finding.id}
                   finding={finding}
+                  highlighted={finding.id === state.diagnosticsHighlightFindingId}
                   onExecute={startFix}
-                  onExplain={state.aiExplainAvailable ? (entry) => state.openDiagnosisFromFinding(entry) : undefined}
+                  onExplain={state.desktop ? (entry) => state.openDiagnosisFromFinding(entry) : undefined}
                 />
               ))}
             </ul>

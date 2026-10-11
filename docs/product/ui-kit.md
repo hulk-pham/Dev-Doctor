@@ -40,6 +40,20 @@ One flat row — class **`filterToolbar`** (`gap-1.5`, no gray panel, not `inset
 
 **`insetBar`** only for next-step / measure-now strips — never toolbars.
 
+## Settings page forms
+
+Use **`src/components/ui/settings-field.tsx`**:
+
+| Piece | Use |
+| --- | --- |
+| **`SettingsFieldGroup`** | One bordered card with `divide-y` between rows (monitoring interval, retention, AI model/key). |
+| **`SettingsNumberField`** | Label + optional hint above; number input `h-8`, `max-w-[8.5rem]`, mono tabular. |
+| **`SettingsTextField`** | Same label pattern; full-width text/password. |
+| **`SettingsSelectField`** | Label + full-width dropdown trigger (`h-8`); popover list — not native `<select>`. |
+| **`SettingsFieldActions`** | Footer row of `Button` sm inside the group (Save key, etc.). |
+
+Do not use a muted inline sentence immediately followed by a tiny `w-24` spinner — it reads broken in narrow layouts.
+
 ## Processes (machine) view
 
 One sidebar entry **Processes**. **`MachineSegments`**: underline tabs **Processes · Trends · Alerts** (same pattern as Workspace). One **`ScreenToolbar`** per tab:

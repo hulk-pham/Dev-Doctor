@@ -153,6 +153,12 @@ export function ProcessesPage() {
   }, [state.processesPortQuery, state.clearProcessesPortQuery, state.setMachineTab]);
 
   useEffect(() => {
+    if (state.processesHighlightPid == null) return;
+    setSelectedPid(state.processesHighlightPid);
+    state.clearProcessesHighlight();
+  }, [state.processesHighlightPid, state.clearProcessesHighlight]);
+
+  useEffect(() => {
     if (!pendingFindPort.current || loading) return;
     const port = pendingFindPort.current;
     pendingFindPort.current = null;
@@ -444,7 +450,7 @@ export function ProcessesPage() {
             onShowAll={() => setShowAllProcesses(true)}
             onOpenProject={(path) => state.openProjectInWorkspace(path)}
             onExplain={
-              state.aiExplainAvailable
+              state.desktop
                 ? (row, project) =>
                     state.openDiagnosisFromProcess({
                       pid: row.pid,
@@ -475,9 +481,15 @@ export function ProcessesPage() {
           </>
         ) : null}
 
-        {tab === "alerts" && !state.aiExplainAvailable ? (
+        {tab === "alerts" && state.desktop ? (
           <p className="text-[11px] text-muted">
-            Add an API key under Settings → AI &amp; Privacy to enable Explain with AI on alerts.
+            Expand an alert for <span className="text-text">Explain with AI</span>.
+            {!state.aiKeyConfigured ? (
+              <>
+                {" "}
+                Save a key under Settings → AI &amp; Privacy to send.
+              </>
+            ) : null}
           </p>
         ) : null}
 
@@ -490,7 +502,7 @@ export function ProcessesPage() {
             onDismiss={(id) => void state.dismissMonitorAlert(id)}
             onMute={(ruleId) => void state.muteMonitorRule(ruleId)}
             onOpenSettings={() => state.setView("settings")}
-            onExplain={state.aiExplainAvailable ? (alert) => state.openDiagnosisFromAlert(alert) : undefined}
+            onExplain={state.desktop ? (alert) => state.openDiagnosisFromAlert(alert) : undefined}
           />
         ) : null}
       </div>

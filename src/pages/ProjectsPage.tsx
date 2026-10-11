@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Badge } from "../components/ui/badge";
+import { stack } from "../lib/ui-layout";
 import { formatWhen } from "../lib/utils";
 import type { ScanHistoryEntry } from "../domain/types";
 import { useAppState } from "../state/AppState";
@@ -30,17 +31,28 @@ export function ProjectsPage() {
     return [...map.values()];
   }, [state.history]);
 
+  const intro = (
+    <p className="text-[11px] text-muted">
+      Saved scans on this Mac — open a project in Workspace to view diagnostics and cleanup again.
+    </p>
+  );
+
   if (groups.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border px-5 py-10 text-center">
-        <p className="text-[13px] font-medium">No scans saved yet</p>
-        <p className="mt-1 text-[11px] text-muted">Scan a folder from Workspace.</p>
+      <div className={stack}>
+        {intro}
+        <div className="rounded-lg border border-dashed border-border px-5 py-10 text-center">
+          <p className="text-[13px] font-medium">No scans saved yet</p>
+          <p className="mt-1 text-[11px] text-muted">Scan a folder from Workspace.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <ul className="overflow-hidden rounded-lg border border-border">
+    <div className={stack}>
+      {intro}
+      <ul className="overflow-hidden rounded-lg border border-border">
       {groups.map((group) => {
         const latest = group.scans[0];
         return (
@@ -82,6 +94,7 @@ export function ProjectsPage() {
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </div>
   );
 }

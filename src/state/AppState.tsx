@@ -29,14 +29,7 @@ import type {
   ScanHistoryEntry,
   ScanResult,
 } from "../domain/types";
-import {
-  buildAlertContextItems,
-  buildArtifactContextItems,
-  buildFindingContextItems,
-  buildProcessContextItems,
-  composeContextText,
-} from "../ai/context-builder";
-import type { AiContextItem, DiagnosisSession } from "../ai/types";
+import type { AiChatMessage, AiError } from "../ai/types";
 import { classifyArtifacts, type ArtifactFinding } from "../diagnostics/artifacts";
 import { buildScanResult } from "../diagnostics/engine";
 import { validateFixRequest, validateProjectPath } from "../diagnostics/paths";
@@ -59,12 +52,6 @@ import {
   monitorClearHistory,
   monitorStorageStatus as fetchMonitorStorageStatus,
   aiSettingsLoad,
-  aiSettingsSave,
-  aiKeyStatus as fetchAiKeyStatus,
-  aiKeySave,
-  aiKeyDelete,
-  aiTestConnection,
-  aiDiagnose,
   monitorSettingsLoad,
   monitorSettingsSave,
   monitorStart,
@@ -74,18 +61,20 @@ import {
   saveCleanupHistory,
   saveHistory,
   scanArtifacts,
-  terminateProcess,
   type ArtifactScanProgress,
   type FolderLayout,
   type UpdateCheck,
 } from "../services/tauri";
 import { applyTheme, readSettings, UPDATE_REMIND_MS, writeSettings, type Settings } from "./settings";
+import { useAiSettingsState } from "./ai-app-state";
+import { useAiChatState } from "./ai-chat-state";
 
 import type { MachineTab } from "../components/layout/MachineSegments";
 
 export type View = "workspace" | "projects" | "processes" | "settings";
 export type WorkspaceTab = "dashboard" | "diagnostics" | "cleanup";
 export type DiagnosticsFocus = "all" | "error" | "warning" | "pass";
+export type SidePanelTab = "chat" | "project";
 
 interface AppStateValue {
   view: View;
@@ -120,6 +109,7 @@ interface AppStateValue {
   portResult: PortInspection | null;
   inspectingPort: boolean;
   toast: string | null;
+  showToast: (message: string) => void;
   chooseFolder: () => Promise<void>;
   scanCurrent: () => Promise<void>;
   scanFolder: (path: string) => Promise<void>;
@@ -129,6 +119,11 @@ interface AppStateValue {
   processesPortQuery: string | null;
   openDiagnosticsTab: (focus?: DiagnosticsFocus) => void;
   openProcessesFindPort: (port: string) => void;
+  openExplainSourceView: (draft: import("../ai/types").AiChatDraft) => void;
+  diagnosticsHighlightFindingId: string | null;
+  clearDiagnosticsHighlight: () => void;
+  processesHighlightPid: number | null;
+  clearProcessesHighlight: () => void;
   openProjectInWorkspace: (projectPath: string) => void;
   clearProcessesPortQuery: () => void;
   boundary: FolderLayout | null;
@@ -169,7 +164,25 @@ interface AppStateValue {
   testAiConnection: () => Promise<void>;
   runAiDiagnosis: (contextText: string) => Promise<import("../ai/types").AiDiagnosisResponse>;
   aiExplainAvailable: boolean;
-  diagnosisSession: DiagnosisSession | null;
+  aiKeyConfigured: boolean;
+  /** Debug builds only — enables in-memory mock LLM without Keychain. */
+  enableDevMockAi: () => Promise<void>;
+  openAiSettings: () => void;
+  sidePanelTab: SidePanelTab;
+  setSidePanelTab: (tab: SidePanelTab) => void;
+  aiChatThreads: import("../ai/types").AiChatThread[];
+  aiChatActiveThreadId: string | null;
+  aiChatMessages: AiChatMessage[];
+  aiChatSending: boolean;
+  aiChatError: AiError | null;
+  aiChatRechecking: boolean;
+  createNewAiChatThread: () => void;
+  selectAiChatThread: (threadId: string) => void;
+  deleteAiChatThread: (threadId: string) => void;
+  setAiChatThreadPinned: (threadId: string, pinned: boolean) => void;
+  setAiChatThreadArchived: (threadId: string, archived: boolean) => void;
+  renameAiChatThread: (threadId: string, title: string) => void;
+  cancelAiChatRequest: () => void;
   openDiagnosisFromAlert: (alert: MonitorAlert) => void;
   openDiagnosisFromFinding: (finding: DiagnosticFinding) => void;
   openDiagnosisFromArtifact: (item: ArtifactFinding) => void;
@@ -183,10 +196,9 @@ interface AppStateValue {
     tcpPorts?: number[];
     matchedProjectPath?: string | null;
   }) => void;
-  closeDiagnosis: () => void;
-  updateDiagnosisItems: (items: AiContextItem[]) => void;
-  sendDiagnosis: () => Promise<void>;
-  recheckDiagnosis: () => Promise<void>;
+  clearAiChat: () => void;
+  sendAiChatMessage: (text: string) => Promise<void>;
+  recheckChatDraft: () => Promise<void>;
   stopProcessForDiagnosis: (pid: number) => Promise<void>;
 }
 
@@ -236,15 +248,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [diagnosticsFocus, setDiagnosticsFocus] = useState<DiagnosticsFocus>("all");
   const [processesPortQuery, setProcessesPortQuery] = useState<string | null>(null);
+  const [diagnosticsHighlightFindingId, setDiagnosticsHighlightFindingId] = useState<string | null>(null);
+  const [processesHighlightPid, setProcessesHighlightPid] = useState<number | null>(null);
   const [monitorSettings, setMonitorSettings] = useState<MonitorSettings | null>(null);
   const [monitorStatus, setMonitorStatus] = useState<MonitorStatus | null>(null);
   const [monitorLatest, setMonitorLatest] = useState<MonitorSample | null>(null);
   const [monitorAlerts, setMonitorAlerts] = useState<MonitorAlert[]>([]);
   const [monitorStorageStatus, setMonitorStorageStatus] = useState<MonitorStorageStatus | null>(null);
   const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
-  const [aiSettings, setAiSettings] = useState<import("../ai/types").AiSettings | null>(null);
-  const [aiKeyStatus, setAiKeyStatus] = useState<import("../ai/types").AiKeyStatus | null>(null);
-  const [diagnosisSession, setDiagnosisSession] = useState<DiagnosisSession | null>(null);
+  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>("chat");
   const desktop = isTauri();
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -264,6 +276,20 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string) => {
     setToast(message);
   }, []);
+
+  const {
+    aiSettings,
+    setAiSettings,
+    aiKeyStatus,
+    aiKeyConfigured,
+    refreshAiKeyStatus,
+    saveAiSettings,
+    enableDevMockAi: enableDevMockAiBase,
+    saveAiKey,
+    deleteAiKey,
+    testAiConnection,
+    runAiDiagnosis,
+  } = useAiSettingsState({ desktop, showToast });
 
   useEffect(() => {
     if (!toast) return;
@@ -353,253 +379,54 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     showToast("Monitoring history cleared");
   }, [desktop, refreshMonitorStatus, refreshMonitorStorageStatus, showToast]);
 
-  const refreshAiKeyStatus = useCallback(async () => {
-    if (!desktop) return;
-    try {
-      setAiKeyStatus(await fetchAiKeyStatus());
-    } catch {
-      setAiKeyStatus(null);
-    }
-  }, [desktop]);
+  const aiChat = useAiChatState({
+    desktop,
+    projectPath,
+    aiKeyConfigured,
+    setView,
+    setInspectorOpen,
+    setSidePanelTab,
+    monitorLatest,
+    monitorAlerts,
+    artifactFindings,
+    scan,
+    refreshMonitorAlerts,
+    setProcessesNonce,
+    showToast,
+  });
 
-  const saveAiSettings = useCallback(
-    async (next: import("../ai/types").AiSettings) => {
-      if (!desktop) return;
-      const saved = await aiSettingsSave(next);
-      setAiSettings(saved);
-    },
-    [desktop],
-  );
+  const enableDevMockAi = useCallback(async () => {
+    await enableDevMockAiBase();
+    aiChat.setAiChatError(null);
+  }, [aiChat.setAiChatError, enableDevMockAiBase]);
 
-  const saveAiKey = useCallback(
-    async (apiKey: string) => {
-      if (!desktop) return;
-      setAiKeyStatus(await aiKeySave(apiKey));
-      showToast("API key saved to Keychain");
-    },
-    [desktop, showToast],
-  );
+  const {
+    aiChatThreads,
+    aiChatActiveThreadId,
+    aiChatMessages,
+    aiChatSending,
+    aiChatError,
+    aiChatRechecking,
+    createNewAiChatThread,
+    selectAiChatThread,
+    deleteAiChatThread,
+    setAiChatThreadPinned,
+    setAiChatThreadArchived,
+    renameAiChatThread,
+    cancelAiChatRequest,
+    openDiagnosisFromAlert,
+    openDiagnosisFromFinding,
+    openDiagnosisFromArtifact,
+    openDiagnosisFromProcess,
+    clearAiChat,
+    sendAiChatMessage,
+    recheckChatDraft,
+    stopProcessForDiagnosis,
+    openAiSettings,
+  } = aiChat;
 
-  const deleteAiKey = useCallback(async () => {
-    if (!desktop) return;
-    setAiKeyStatus(await aiKeyDelete());
-    showToast("API key removed");
-  }, [desktop, showToast]);
-
-  const testAiConnection = useCallback(async () => {
-    if (!desktop) return;
-    try {
-      await aiTestConnection();
-      showToast("AI connection OK");
-    } catch (cause) {
-      showToast(errorMessage(cause));
-      throw cause;
-    }
-  }, [desktop, showToast]);
-
-  const runAiDiagnosis = useCallback(
-    async (contextText: string) => {
-      if (!desktop) throw new Error("AI diagnosis runs in the desktop app.");
-      const response = await aiDiagnose(contextText);
-      return response;
-    },
-    [desktop],
-  );
-
-  const aiExplainAvailable = Boolean(aiKeyStatus?.configured);
-
-  const beginDiagnosis = useCallback((session: Omit<DiagnosisSession, "result" | "error" | "sending" | "baselineContext" | "afterContext" | "rechecking">) => {
-    setDiagnosisSession({
-      ...session,
-      result: null,
-      error: null,
-      sending: false,
-      baselineContext: null,
-      afterContext: null,
-      rechecking: false,
-    });
-    setInspectorOpen(true);
-  }, []);
-
-  const openDiagnosisFromAlert = useCallback(
-    (alert: MonitorAlert) => {
-      beginDiagnosis({
-        sourceKind: "alert",
-        sourceId: alert.id,
-        sourceLabel: alert.title,
-        items: buildAlertContextItems({
-          alert,
-          latestSample: monitorLatest,
-          projectPath,
-        }),
-        anchors: { projectPath, artifacts: artifactFindings },
-      });
-    },
-    [artifactFindings, beginDiagnosis, monitorLatest, projectPath],
-  );
-
-  const openDiagnosisFromFinding = useCallback(
-    (finding: DiagnosticFinding) => {
-      beginDiagnosis({
-        sourceKind: "finding",
-        sourceId: finding.id,
-        sourceLabel: finding.title,
-        items: buildFindingContextItems(finding, projectPath),
-        anchors: { projectPath, finding, artifacts: artifactFindings },
-      });
-    },
-    [artifactFindings, beginDiagnosis, projectPath],
-  );
-
-  const openDiagnosisFromArtifact = useCallback(
-    (item: ArtifactFinding) => {
-      beginDiagnosis({
-        sourceKind: "artifact",
-        sourceId: item.relativePath,
-        sourceLabel: item.relativePath,
-        items: buildArtifactContextItems(item, projectPath),
-        anchors: { projectPath, artifact: item, artifacts: artifactFindings },
-      });
-    },
-    [artifactFindings, beginDiagnosis, projectPath],
-  );
-
-  const openDiagnosisFromProcess = useCallback(
-    (input: {
-      pid: number;
-      name: string;
-      command?: string;
-      cwd?: string | null;
-      cpuPercent?: number;
-      memoryBytes?: number;
-      tcpPorts?: number[];
-      matchedProjectPath?: string | null;
-    }) => {
-      beginDiagnosis({
-        sourceKind: "process",
-        sourceId: String(input.pid),
-        sourceLabel: `${input.name} (PID ${input.pid})`,
-        items: buildProcessContextItems({ ...input, projectPath }),
-        anchors: {
-          projectPath,
-          process: {
-            pid: input.pid,
-            name: input.name,
-            command: input.command,
-            ports: input.tcpPorts,
-          },
-        },
-      });
-    },
-    [beginDiagnosis, projectPath],
-  );
-
-  const closeDiagnosis = useCallback(() => {
-    setDiagnosisSession(null);
-  }, []);
-
-  const updateDiagnosisItems = useCallback((items: AiContextItem[]) => {
-    setDiagnosisSession((current) => (current ? { ...current, items } : current));
-  }, []);
-
-  const sendDiagnosis = useCallback(async () => {
-    if (!diagnosisSession || !desktop) return;
-    const text = composeContextText(diagnosisSession.items);
-    setDiagnosisSession((current) =>
-      current ? { ...current, sending: true, error: null } : current,
-    );
-    try {
-      const result = await aiDiagnose(text);
-      setDiagnosisSession((current) =>
-        current
-          ? {
-              ...current,
-              sending: false,
-              result,
-              baselineContext: text,
-              afterContext: null,
-            }
-          : current,
-      );
-    } catch (cause) {
-      const message = errorMessage(cause);
-      const error =
-        typeof cause === "object" && cause && "code" in cause
-          ? (cause as import("../ai/types").AiError)
-          : { code: "providerMessage" as const, message };
-      setDiagnosisSession((current) =>
-        current ? { ...current, sending: false, error } : current,
-      );
-    }
-  }, [desktop, diagnosisSession]);
-
-  const rebuildDiagnosisItems = useCallback(
-    (session: DiagnosisSession): AiContextItem[] => {
-      switch (session.sourceKind) {
-        case "alert": {
-          const alert = monitorAlerts.find((entry) => entry.id === session.sourceId);
-          if (!alert) return session.items;
-          return buildAlertContextItems({ alert, latestSample: monitorLatest, projectPath });
-        }
-        case "finding": {
-          const finding = scan?.findings.find((entry) => entry.id === session.sourceId);
-          if (!finding) return session.items;
-          return buildFindingContextItems(finding, projectPath);
-        }
-        case "artifact": {
-          const item = artifactFindings.find((entry) => entry.relativePath === session.sourceId);
-          if (!item) return session.items;
-          return buildArtifactContextItems(item, projectPath);
-        }
-        case "process": {
-          const pid = Number(session.sourceId);
-          if (!Number.isFinite(pid) || !session.anchors.process) return session.items;
-          return buildProcessContextItems({
-            ...session.anchors.process,
-            pid,
-            projectPath,
-          });
-        }
-        default:
-          return session.items;
-      }
-    },
-    [artifactFindings, monitorAlerts, monitorLatest, projectPath, scan?.findings],
-  );
-
-  const recheckDiagnosis = useCallback(async () => {
-    if (!diagnosisSession) return;
-    setDiagnosisSession((current) => (current ? { ...current, rechecking: true } : current));
-    try {
-      if (desktop) {
-        await refreshMonitorAlerts();
-        setProcessesNonce((value) => value + 1);
-      }
-      setDiagnosisSession((current) => {
-        if (!current) return current;
-        const items = rebuildDiagnosisItems(current);
-        const afterContext = composeContextText(items);
-        return {
-          ...current,
-          items,
-          rechecking: false,
-          afterContext,
-        };
-      });
-    } catch {
-      setDiagnosisSession((current) => (current ? { ...current, rechecking: false } : current));
-    }
-  }, [desktop, diagnosisSession, rebuildDiagnosisItems, refreshMonitorAlerts]);
-
-  const stopProcessForDiagnosis = useCallback(
-    async (pid: number) => {
-      if (!desktop) return;
-      await terminateProcess(pid);
-      showToast(`Sent stop to PID ${pid}`);
-      setProcessesNonce((value) => value + 1);
-    },
-    [desktop, showToast],
-  );
+  /** Desktop app supports Explain; sending still needs a Keychain key. */
+  const aiExplainAvailable = desktop;
 
   const openMachineTrends = useCallback(() => {
     setView("processes");
@@ -794,6 +621,49 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearProcessesPortQuery = useCallback(() => setProcessesPortQuery(null), []);
+
+  const clearDiagnosticsHighlight = useCallback(() => setDiagnosticsHighlightFindingId(null), []);
+  const clearProcessesHighlight = useCallback(() => setProcessesHighlightPid(null), []);
+
+  const openExplainSourceView = useCallback(
+    (draft: import("../ai/types").AiChatDraft) => {
+      switch (draft.sourceKind) {
+        case "finding": {
+          const finding =
+            draft.anchors.finding ?? scan?.findings.find((entry) => entry.id === draft.sourceId);
+          const focus: DiagnosticsFocus =
+            finding?.severity === "error" ? "error" : finding?.severity === "warning" ? "warning" : "all";
+          setDiagnosticsHighlightFindingId(draft.sourceId);
+          setDiagnosticsFocus(focus);
+          setView("workspace");
+          setWorkspaceTab("diagnostics");
+          showToast("Opened Diagnostics for this finding");
+          break;
+        }
+        case "artifact":
+          setView("workspace");
+          setWorkspaceTab("cleanup");
+          showToast("Opened Cleanup for this artifact");
+          break;
+        case "alert":
+          focusMonitorAlert(draft.sourceId);
+          showToast("Opened Alerts for this item");
+          break;
+        case "process": {
+          const pid = draft.anchors.process?.pid ?? Number(draft.sourceId);
+          if (!Number.isFinite(pid)) break;
+          setProcessesHighlightPid(pid);
+          setView("processes");
+          setMachineTab("processes");
+          const port = draft.anchors.process?.ports?.[0];
+          if (port != null) setProcessesPortQuery(String(port));
+          showToast(`Opened Processes for PID ${pid}`);
+          break;
+        }
+      }
+    },
+    [focusMonitorAlert, scan?.findings, showToast],
+  );
 
   const checkForUpdates = useCallback(
     async (manual = false) => {
@@ -1252,6 +1122,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       portResult,
       inspectingPort,
       toast,
+      showToast,
       chooseFolder,
       scanCurrent,
       scanFolder: scanPath,
@@ -1261,6 +1132,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       processesPortQuery,
       openDiagnosticsTab,
       openProcessesFindPort,
+      openExplainSourceView,
+      diagnosticsHighlightFindingId,
+      clearDiagnosticsHighlight,
+      processesHighlightPid,
+      clearProcessesHighlight,
       openProjectInWorkspace,
       clearProcessesPortQuery,
       boundary,
@@ -1301,15 +1177,31 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       testAiConnection,
       runAiDiagnosis,
       aiExplainAvailable,
-      diagnosisSession,
+      aiKeyConfigured,
+      enableDevMockAi,
+      openAiSettings,
+      sidePanelTab,
+      setSidePanelTab,
+      aiChatThreads,
+      aiChatActiveThreadId,
+      aiChatMessages,
+      aiChatSending,
+      aiChatError,
+      aiChatRechecking,
+      createNewAiChatThread,
+      selectAiChatThread,
+      deleteAiChatThread,
+      setAiChatThreadPinned,
+      setAiChatThreadArchived,
+      renameAiChatThread,
+      cancelAiChatRequest,
       openDiagnosisFromAlert,
       openDiagnosisFromFinding,
       openDiagnosisFromArtifact,
       openDiagnosisFromProcess,
-      closeDiagnosis,
-      updateDiagnosisItems,
-      sendDiagnosis,
-      recheckDiagnosis,
+      clearAiChat,
+      sendAiChatMessage,
+      recheckChatDraft,
       stopProcessForDiagnosis,
     }),
     [
@@ -1340,6 +1232,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       portResult,
       inspectingPort,
       toast,
+      showToast,
       chooseFolder,
       scanCurrent,
       scanPath,
@@ -1349,6 +1242,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       processesPortQuery,
       openDiagnosticsTab,
       openProcessesFindPort,
+      openExplainSourceView,
+      diagnosticsHighlightFindingId,
+      clearDiagnosticsHighlight,
+      processesHighlightPid,
+      clearProcessesHighlight,
       openProjectInWorkspace,
       clearProcessesPortQuery,
       boundary,
@@ -1394,15 +1292,30 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       testAiConnection,
       runAiDiagnosis,
       aiExplainAvailable,
-      diagnosisSession,
+      aiKeyConfigured,
+      enableDevMockAi,
+      openAiSettings,
+      sidePanelTab,
+      aiChatThreads,
+      aiChatActiveThreadId,
+      aiChatMessages,
+      aiChatSending,
+      aiChatError,
+      aiChatRechecking,
+      createNewAiChatThread,
+      selectAiChatThread,
+      deleteAiChatThread,
+      setAiChatThreadPinned,
+      setAiChatThreadArchived,
+      renameAiChatThread,
+      cancelAiChatRequest,
       openDiagnosisFromAlert,
       openDiagnosisFromFinding,
       openDiagnosisFromArtifact,
       openDiagnosisFromProcess,
-      closeDiagnosis,
-      updateDiagnosisItems,
-      sendDiagnosis,
-      recheckDiagnosis,
+      clearAiChat,
+      sendAiChatMessage,
+      recheckChatDraft,
       stopProcessForDiagnosis,
     ],
   );

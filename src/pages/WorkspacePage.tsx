@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 import { ecosystemLabel } from "../diagnostics/engine";
 import { workspaceNextStep } from "../domain/workspace-next-step";
 import { insetBar, stack, summaryTile } from "../lib/ui-layout";
-import { basename, cn, formatBytes } from "../lib/utils";
+import { cn, formatBytes } from "../lib/utils";
 import { useAppState } from "../state/AppState";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -195,8 +195,8 @@ export function ProjectInspector() {
           <Info label="Node" value={meta.nodeVersion ?? "—"} />
           <Info label="Packages" value={meta.packageManagerVersion ? `${meta.packageManager} ${meta.packageManagerVersion}` : meta.packageManager} />
         </dl>
-      ) : (
-        <p className="text-muted">{state.projectPath ? basename(state.projectPath) : "No folder selected."}</p>
+      ) : state.projectPath ? null : (
+        <p className="text-[11px] text-muted">Select a folder in the bar above.</p>
       )}
       {lastCleanup ? (
         <p className="text-[11px] text-muted">

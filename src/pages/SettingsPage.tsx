@@ -2,6 +2,21 @@ import { Copy } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import {
+  SettingsFieldActions,
+  SettingsFieldGroup,
+  SettingsNumberField,
+  SettingsSelectField,
+  SettingsTextField,
+} from "../components/ui/settings-field";
+import {
+  aiProviderOptionsForUi,
+  isLocalOllamaEndpoint,
+  isMockAiProvider,
+  providerHost,
+  providerOption,
+} from "../ai/provider-catalog";
+import type { AiProviderId } from "../ai/types";
 import { cn, errorMessage } from "../lib/utils";
 import { useAppState } from "../state/AppState";
 import type { ThemePreference } from "../state/settings";
@@ -94,27 +109,41 @@ export function SettingsPage() {
           />
           <span>Enable background monitoring</span>
         </label>
-        <label className="mt-3 block text-sm">
-          <span className="text-muted">Sample interval (seconds)</span>
-          <input
-            type="number"
+        <SettingsFieldGroup className="mt-4">
+          <SettingsNumberField
+            label="Sample interval"
+            unit="seconds"
             min={2}
             max={60}
-            className="mt-1 w-24 rounded-lg border border-border bg-panel-2 px-2 py-1 font-mono text-sm"
-            value={state.monitorSettings?.intervalSeconds ?? 5}
             disabled={!state.desktop}
-            onChange={(event) => {
-              const interval = Number(event.target.value);
-              if (!Number.isFinite(interval)) return;
+            value={state.monitorSettings?.intervalSeconds ?? 5}
+            onChange={(intervalSeconds) => {
               void state.saveMonitorSettings({
                 enabled: state.monitorSettings?.enabled ?? false,
-                intervalSeconds: interval,
+                intervalSeconds,
                 rules: state.monitorSettings?.rules ?? [],
                 retentionDays: state.monitorSettings?.retentionDays ?? 30,
               });
             }}
           />
-        </label>
+          <SettingsNumberField
+            label="Keep hourly aggregates"
+            unit="days"
+            hint="Raw samples 24 h, minute buckets 7 d, then hourly until this limit."
+            min={7}
+            max={90}
+            disabled={!state.desktop}
+            value={state.monitorSettings?.retentionDays ?? 30}
+            onChange={(retentionDays) => {
+              void state.saveMonitorSettings({
+                enabled: state.monitorSettings?.enabled ?? false,
+                intervalSeconds: state.monitorSettings?.intervalSeconds ?? 5,
+                rules: state.monitorSettings?.rules ?? [],
+                retentionDays,
+              });
+            }}
+          />
+        </SettingsFieldGroup>
         {state.monitorSettings?.rules?.length ? (
           <ul className="mt-4 space-y-2 text-sm">
             {state.monitorSettings.rules.map((rule) => (
@@ -144,28 +173,6 @@ export function SettingsPage() {
             ))}
           </ul>
         ) : null}
-        <label className="mt-3 block text-sm">
-          <span className="text-muted">Keep hourly aggregates (days)</span>
-          <input
-            type="number"
-            min={7}
-            max={90}
-            className="mt-1 w-24 rounded-lg border border-border bg-panel-2 px-2 py-1 font-mono text-sm"
-            value={state.monitorSettings?.retentionDays ?? 30}
-            disabled={!state.desktop}
-            onChange={(event) => {
-              const days = Number(event.target.value);
-              if (!Number.isFinite(days)) return;
-              void state.saveMonitorSettings({
-                enabled: state.monitorSettings?.enabled ?? false,
-                intervalSeconds: state.monitorSettings?.intervalSeconds ?? 5,
-                rules: state.monitorSettings?.rules ?? [],
-                retentionDays: days,
-              });
-            }}
-          />
-        </label>
-        <p className="mt-1 text-[11px] text-muted">Raw samples 24 h, minute buckets 7 d, then hourly until this limit.</p>
         <Button
           className="mt-3"
           size="sm"
@@ -183,50 +190,116 @@ export function SettingsPage() {
       <section className="min-w-0 rounded-xl border border-border bg-panel p-4">
         <h2 className="text-sm font-medium">AI &amp; Privacy</h2>
         <p className="mt-1 text-sm leading-relaxed text-muted">
-          OpenAI BYOK. Requests run from Rust; your key stays in Keychain, not in settings or the webview.
+          BYOK multi-provider. Requests run from Rust; keys stay in Keychain, not in settings or the webview.
         </p>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted break-words">
-          Host{" "}
-          <span className="font-mono text-text">api.openai.com</span> after you confirm the context preview. Paths and logs are opt-in.
+        <p className="mt-2 text-[11px] leading-relaxed text-muted">
+          Each provider uses its own Keychain entry. Only allowlisted hosts are contacted for the provider you select.
         </p>
 
-        <div className="mt-4 min-w-0 overflow-hidden rounded-lg border border-border">
-          <label className="block border-b border-border px-3 py-2.5">
-            <span className="text-[11px] uppercase tracking-wide text-muted">Model</span>
-            <input
-              className="mt-1.5 h-8 w-full rounded-lg border border-border bg-panel-2 px-2 font-mono text-[13px]"
-              value={state.aiSettings?.model ?? "gpt-4o-mini"}
+        <SettingsFieldGroup className="mt-4">
+          <SettingsSelectField
+            label="Provider"
+            disabled={!state.desktop}
+            value={(state.aiSettings?.provider ?? "openai") as AiProviderId}
+            options={aiProviderOptionsForUi().map((entry) => ({ id: entry.id, label: entry.label }))}
+            onChange={(provider) => {
+              const entry = providerOption(provider);
+              if (!entry) return;
+              void state.saveAiSettings({
+                provider,
+                model: entry.defaultModel,
+                baseUrl: entry.baseUrl ?? null,
+              });
+            }}
+          />
+          <p className="px-3 pb-2 text-[11px] text-muted">
+            Active host{" "}
+            <span className="font-mono text-text">{providerHost(state.aiSettings?.provider ?? "openai")}</span>
+          </p>
+          {providerOption(state.aiSettings?.provider ?? "openai")?.baseUrlHint ? (
+            <SettingsTextField
+              label="Endpoint URL"
+              hint={providerOption(state.aiSettings?.provider ?? "openai")?.baseUrlHint}
               disabled={!state.desktop}
-              onChange={(event) => {
+              mono
+              value={state.aiSettings?.baseUrl ?? providerOption(state.aiSettings?.provider ?? "openai")?.baseUrl ?? ""}
+              onChange={(baseUrl) => {
                 void state.saveAiSettings({
-                  provider: "openai",
-                  model: event.target.value,
+                  provider: (state.aiSettings?.provider ?? "openai") as AiProviderId,
+                  model: state.aiSettings?.model ?? "gpt-4o-mini",
+                  baseUrl: baseUrl.trim() || null,
                 });
               }}
             />
-          </label>
+          ) : null}
+          {state.aiSettings?.provider === "ollama" &&
+          state.aiSettings.baseUrl &&
+          !isLocalOllamaEndpoint(state.aiSettings.baseUrl) ? (
+            <p className="px-3 pb-2 text-[11px] text-warning">
+              Ollama should stay on localhost. Remote endpoints are blocked for safety.
+            </p>
+          ) : null}
+          {!isMockAiProvider(state.aiSettings?.provider) ? (
+            <SettingsTextField
+              label="Model"
+              hint={
+                state.aiSettings?.provider === "azure"
+                  ? "Azure deployment name"
+                  : "Provider-specific model id"
+              }
+              disabled={!state.desktop}
+              value={state.aiSettings?.model ?? "gpt-4o-mini"}
+              onChange={(model) => {
+                void state.saveAiSettings({
+                  provider: (state.aiSettings?.provider ?? "openai") as AiProviderId,
+                  model,
+                  baseUrl: state.aiSettings?.baseUrl ?? null,
+                });
+              }}
+            />
+          ) : (
+            <p className="px-3 pb-2 text-[11px] text-muted">
+              Mock AI returns canned diagnosis and chat text. No API key or network — for local QA only.
+            </p>
+          )}
+          {!isMockAiProvider(state.aiSettings?.provider) ? (
+          <>
           <div className="px-3 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] uppercase tracking-wide text-muted">API key</span>
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted">API key</span>
               <Badge tone={state.aiKeyStatus?.configured ? "pass" : "neutral"}>
-                {state.aiKeyStatus?.configured ? "In Keychain" : "Not set"}
+                {providerOption(state.aiSettings?.provider ?? "openai")?.keyOptional
+                  ? "Optional (local)"
+                  : state.aiKeyStatus?.configured
+                    ? "In Keychain"
+                    : "Not set"}
               </Badge>
             </div>
             <input
               type="password"
               autoComplete="off"
-              className="mt-1.5 h-8 w-full rounded-lg border border-border bg-panel-2 px-2 font-mono text-[13px]"
-              placeholder={state.aiKeyStatus?.configured ? "Paste to replace" : "sk-…"}
+              className="mt-1.5 h-8 w-full rounded-lg border border-border bg-panel-2 px-2 font-mono text-[13px] text-text"
+              placeholder={
+                providerOption(state.aiSettings?.provider ?? "openai")?.keyOptional
+                  ? "Optional for local Ollama"
+                  : state.aiKeyStatus?.configured
+                    ? "Paste to replace"
+                    : "API key…"
+              }
               value={keyDraft}
               disabled={!state.desktop || aiBusy}
               onChange={(event) => setKeyDraft(event.target.value)}
             />
           </div>
-          <div className="flex flex-wrap gap-2 border-t border-border bg-panel-2/40 px-3 py-2.5">
+          <SettingsFieldActions>
             <Button
               size="sm"
               variant="secondary"
-              disabled={!state.desktop || aiBusy || !keyDraft.trim()}
+              disabled={
+                !state.desktop ||
+                aiBusy ||
+                (!keyDraft.trim() && !providerOption(state.aiSettings?.provider ?? "openai")?.keyOptional)
+              }
               onClick={() => {
                 const draft = keyDraft.trim();
                 setAiBusy(true);
@@ -273,8 +346,28 @@ export function SettingsPage() {
             >
               Delete key
             </Button>
-          </div>
-        </div>
+          </SettingsFieldActions>
+          </>
+          ) : (
+            <SettingsFieldActions>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!state.desktop || aiBusy}
+                onClick={() => {
+                  setAiBusy(true);
+                  setAiMessage(null);
+                  void state
+                    .testAiConnection()
+                    .catch((cause) => setAiMessage(errorMessage(cause)))
+                    .finally(() => setAiBusy(false));
+                }}
+              >
+                Test mock response
+              </Button>
+            </SettingsFieldActions>
+          )}
+        </SettingsFieldGroup>
         {aiMessage ? <p className="mt-2 text-[11px] text-danger break-words">{aiMessage}</p> : null}
       </section>
 

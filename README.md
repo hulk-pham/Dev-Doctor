@@ -70,9 +70,9 @@ History paths are shown on **Settings**. You can clear monitoring history there 
 
 **Requirements:** macOS 15+, Apple silicon build (see [Install troubleshooting](docs/install.md) for Intel and Gatekeeper).
 
-The current release is **0.4.0** for Apple silicon.
+The current release is **0.5.0** for Apple silicon.
 
-1. Download the latest [Dev Doctor disk image](https://github.com/hulk-pham/Dev-Doctor/releases/latest) (`Dev Doctor_0.4.0_aarch64.dmg` or newer on that page).
+1. Download the latest [Dev Doctor disk image](https://github.com/hulk-pham/Dev-Doctor/releases/latest) (`Dev Doctor_0.5.0_aarch64.dmg` or newer on that page).
 2. Open the disk image and drag **Dev Doctor** to **Applications**.
 3. First launch: the build is **unsigned and not notarized**. Right-click the app → **Open** → **Open** again. If macOS still blocks it, follow [docs/install.md](docs/install.md).
 

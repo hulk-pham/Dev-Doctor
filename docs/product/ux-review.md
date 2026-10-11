@@ -146,6 +146,7 @@ Living document. Agents: read before IA/navigation/copy changes; move items to *
 - 2026-10-11: **Diagnostics filters** — one `filterToolbar` row (severity segment + category menu); rule in design-principles / product-design.
 - 2026-10-11: **UI kit** — `docs/product/ui-kit.md` + `ui-kit.mdc` + `screen-toolbar.tsx`; Processes scope = SegmentedFilter, Pause/Refresh = icons.
 - 2026-10-11: **Sample project** — removed from selector, Diagnostics banner, Tauri `sample_fixture_path`; fixture for tests/agents only.
+- 2026-10-11: **AI chat panel** — structured diagnosis card (steps in-thread), collapsed context bubble, follow-up suggestion chips, Explain source in header.
 
 ---
 

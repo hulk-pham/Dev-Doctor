@@ -218,3 +218,19 @@ export function aiTestConnection(): Promise<void> {
 export function aiDiagnose(contextText: string): Promise<import("../ai/types").AiDiagnosisResponse> {
   return invoke("ai_diagnose", { contextText });
 }
+
+export function aiChat(messages: Array<{ role: string; content: string }>): Promise<string> {
+  return invoke("ai_chat", { messages });
+}
+
+export function aiCancelInflight(): Promise<void> {
+  return invoke("ai_cancel_inflight");
+}
+
+export function aiChatStoreLoad(scope: string): Promise<string | null> {
+  return invoke("ai_chat_store_load", { scope });
+}
+
+export function aiChatStoreSave(scope: string, json: string): Promise<void> {
+  return invoke("ai_chat_store_save", { scope, json });
+}

@@ -1,5 +1,5 @@
-use crate::ai::credentials::{read_api_key, ApiKeyProvider};
-use crate::ai::provider::{provider_for, ProviderError, LlmProvider, MAX_CONTEXT_CHARS};
+use crate::ai::credentials::api_key_for_ai_settings;
+use crate::ai::provider::{complete_multi_async, provider_for, ProviderError, LlmProvider, MAX_CONTEXT_CHARS};
 use crate::ai::settings::AiSettings;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,7 @@ pub enum AiErrorCode {
     ContextTooLarge,
     UnsupportedProvider,
     ProviderMessage,
+    Cancelled,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -49,19 +50,10 @@ pub struct AiDiagnosisResponse {
 }
 
 pub fn test_connection(settings: &AiSettings) -> Result<(), AiError> {
-    let provider_id = ApiKeyProvider::from_settings_id(&settings.provider).map_err(|message| AiError {
-        code: AiErrorCode::UnsupportedProvider,
+    let api_key = api_key_for_ai_settings(settings).map_err(|message| AiError {
+        code: AiErrorCode::NoKey,
         message,
     })?;
-    let api_key = read_api_key(provider_id)
-        .map_err(|error| AiError {
-            code: AiErrorCode::ProviderMessage,
-            message: error,
-        })?
-        .ok_or(AiError {
-            code: AiErrorCode::NoKey,
-            message: "Add an API key in Settings → AI & Privacy.".into(),
-        })?;
     let provider = provider_for(settings);
     let reply = provider
         .complete(
@@ -75,6 +67,48 @@ pub fn test_connection(settings: &AiSettings) -> Result<(), AiError> {
     Ok(())
 }
 
+pub async fn diagnose_async(settings: &AiSettings, context_text: &str) -> Result<AiDiagnosisResponse, AiError> {
+    if context_text.chars().count() > MAX_CONTEXT_CHARS {
+        return Err(AiError {
+            code: AiErrorCode::ContextTooLarge,
+            message: format!("Context is too large (max {MAX_CONTEXT_CHARS} characters). Remove items and try again."),
+        });
+    }
+    let api_key = api_key_for_ai_settings(settings).map_err(|message| AiError {
+        code: AiErrorCode::NoKey,
+        message,
+    })?;
+    let reply = complete_multi_async(
+        settings,
+        &settings.model,
+        SYSTEM_PROMPT,
+        &[("user", context_text)],
+        &api_key,
+        true,
+    )
+    .await
+    .map_err(map_provider_err)?;
+    match parse_diagnosis(&reply) {
+        Ok(parsed) => Ok(parsed),
+        Err(first_err) => {
+            let retry_prompt = format!(
+                "{context_text}\n\nYour previous reply was not valid JSON. Reply with a single JSON object only, no markdown."
+            );
+            let retry = complete_multi_async(
+                settings,
+                &settings.model,
+                SYSTEM_PROMPT,
+                &[("user", &retry_prompt)],
+                &api_key,
+                true,
+            )
+            .await
+            .map_err(map_provider_err)?;
+            parse_diagnosis(&retry).map_err(|_| map_schema_err(first_err))
+        }
+    }
+}
+
 pub fn diagnose(settings: &AiSettings, context_text: &str) -> Result<AiDiagnosisResponse, AiError> {
     if context_text.chars().count() > MAX_CONTEXT_CHARS {
         return Err(AiError {
@@ -82,24 +116,26 @@ pub fn diagnose(settings: &AiSettings, context_text: &str) -> Result<AiDiagnosis
             message: format!("Context is too large (max {MAX_CONTEXT_CHARS} characters). Remove items and try again."),
         });
     }
-    let provider_id = ApiKeyProvider::from_settings_id(&settings.provider).map_err(|message| AiError {
-        code: AiErrorCode::UnsupportedProvider,
+    let api_key = api_key_for_ai_settings(settings).map_err(|message| AiError {
+        code: AiErrorCode::NoKey,
         message,
     })?;
-    let api_key = read_api_key(provider_id)
-        .map_err(|error| AiError {
-            code: AiErrorCode::ProviderMessage,
-            message: error,
-        })?
-        .ok_or(AiError {
-            code: AiErrorCode::NoKey,
-            message: "Add an API key in Settings → AI & Privacy.".into(),
-        })?;
     let provider = provider_for(settings);
     let reply = provider
         .complete(&settings.model, SYSTEM_PROMPT, context_text, &api_key)
         .map_err(map_provider_err)?;
-    parse_diagnosis(&reply).map_err(map_schema_err)
+    match parse_diagnosis(&reply) {
+        Ok(parsed) => Ok(parsed),
+        Err(first_err) => {
+            let retry_prompt = format!(
+                "{context_text}\n\nYour previous reply was not valid JSON. Reply with a single JSON object only, no markdown."
+            );
+            let retry = provider
+                .complete(&settings.model, SYSTEM_PROMPT, &retry_prompt, &api_key)
+                .map_err(map_provider_err)?;
+            parse_diagnosis(&retry).map_err(|_| map_schema_err(first_err))
+        }
+    }
 }
 
 pub fn diagnose_with_provider(
@@ -144,7 +180,7 @@ fn validate_diagnosis_json(json_text: &str) -> Result<AiDiagnosisResponse, Strin
     Ok(value)
 }
 
-fn map_provider_err(error: ProviderError) -> AiError {
+pub(crate) fn map_provider_err(error: ProviderError) -> AiError {
     match error {
         ProviderError::Unauthorized => AiError {
             code: AiErrorCode::NoKey,
@@ -190,6 +226,7 @@ mod tests {
         let settings = AiSettings {
             provider: "fake".into(),
             model: "fake-model".into(),
+            base_url: None,
         };
         let provider = FakeProvider {
             response: crate::ai::provider::fake_diagnosis_json(),

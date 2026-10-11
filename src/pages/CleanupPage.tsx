@@ -164,7 +164,7 @@ function CleanupRow({ item, checked, onToggle }: { item: ArtifactFinding; checke
       <p className="mt-0.5 truncate text-[11px] text-muted">
         {item.safety} · {item.reason}
       </p>
-      {state.aiExplainAvailable ? (
+      {state.desktop ? (
         <Button size="sm" variant="secondary" className="mt-1.5" onClick={() => state.openDiagnosisFromArtifact(item)}>
           Explain with AI
         </Button>

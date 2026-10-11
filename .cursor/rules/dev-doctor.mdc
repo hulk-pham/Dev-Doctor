@@ -67,6 +67,7 @@ Product checklist (journeys, affordances): **`product-design.mdc`**.
 | Any UI control or layout | **`ui-kit.mdc`** |
 | Changing title row / nav column | `ui-chrome.mdc` |
 | Diagnostic rules / Rust parsers | `diagnostics.mdc` |
+| AI Keychain, OpenAI IPC, diagnosis UI | `ai-byok.mdc` |
 | MCP commands & WKWebView limits | `debug-harness.mdc` |
 | Finish-loop detail & git habits | `agent-workflow.mdc` |
 

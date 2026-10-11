@@ -6,7 +6,7 @@ alwaysApply: false
 
 # UI kit (mandatory for UI)
 
-**Spec:** `docs/product/ui-kit.md`. **Code:** `screen-toolbar.tsx`, `SegmentedFilter`, `Switch`, `FilterMenu`, `FilterChip`, `ui-layout.ts`.
+**Spec:** `docs/product/ui-kit.md`. **Code:** `screen-toolbar.tsx`, `SegmentedFilter`, `Switch`, `FilterMenu`, `FilterChip`, `settings-field.tsx`, `ui-layout.ts`.
 
 ## Non-negotiable
 
@@ -18,6 +18,7 @@ alwaysApply: false
 6. **Section nav** — underline tabs (`WorkspaceSegments`), not pill buttons.
 7. **Secondary filter menu** — `FilterMenu` in **`ToolbarEnd`** (`ml-auto`).
 8. **Findings** — `findingRowAccent` + badge.
+9. **Settings forms** — `SettingsFieldGroup` + `SettingsNumberField` / `SettingsTextField` from `settings-field.tsx`. Label above control (uppercase `text-[11px]`), `h-8` inputs, numbers `max-w-[8.5rem]` + `tabular-nums`. No cramped inline label + `w-24` number box on one row.
 
 When adding a control, match an existing row in `ui-kit.md` — do not invent a third tab style.
 
@@ -25,3 +26,6 @@ When adding a control, match an existing row in `ui-kit.md` — do not invent a 
 
 - 2026-10-11: Processes Pause/Refresh were icon-only; scope Dev/All uses SegmentedFilter like Diagnostics.
 - 2026-10-11: This project is a `Switch`, not a segmented pair. Toasts dismiss after 2.4s via `showToast`.
+- 2026-10-11: Settings numeric fields use `settings-field.tsx` bordered groups — not bare `block text-sm` + `w-24` inputs.
+- 2026-10-11: Side inspector chat — underline tabs Chat/Project; thread toolbar uses `ToolbarIconButton`; composer = bordered box + icon Send (not full-width Send button).
+- 2026-10-11: Side inspector width 320–480px — drag left edge (`inspector-width.ts`, persists in localStorage).

@@ -226,16 +226,16 @@ Goal: BYOK beyond OpenAI while keeping the same diagnosis schema and Rust-only r
 
 **Wave 1**
 
-- [ ] P4b.1 **Anthropic** adapter (`api.anthropic.com`), Keychain slot, allowlist, default model (e.g. `claude-sonnet-4-20250514` or current mini).
-- [ ] P4b.2 **Google Gemini** adapter (`generativelanguage.googleapis.com`), key + model setting.
-- [ ] P4b.3 **Local Ollama** — OpenAI-compatible `http://127.0.0.1:11434/v1/chat/completions`; optional base URL in settings; key optional or placeholder.
+- [x] P4b.1 **Anthropic** adapter (`api.anthropic.com`), Keychain slot, allowlist, default model (e.g. `claude-sonnet-4-20250514` or current mini).
+- [x] P4b.2 **Google Gemini** adapter (`generativelanguage.googleapis.com`), key + model setting.
+- [x] P4b.3 **Local Ollama** — OpenAI-compatible `http://127.0.0.1:11434/v1/chat/completions`; optional base URL in settings; key optional or placeholder.
 
 **Wave 2**
 
-- [ ] P4b.4 **OpenAI-compatible hosts:** Groq, Together, OpenRouter (shared client + per-host allowlist prefix).
-- [ ] P4b.5 **Azure OpenAI** — resource base URL + deployment name as model; `api-key` header variant.
-- [ ] P4b.6 Settings → provider picker, per-provider default model hints, Privacy lists all reachable hosts.
-- [ ] P4b.7 Tests: HTTP mocks or stub provider per adapter; no real keys in CI.
+- [x] P4b.4 **OpenAI-compatible hosts:** Groq, Together, OpenRouter (shared client + per-host allowlist prefix).
+- [x] P4b.5 **Azure OpenAI** — resource base URL + deployment name as model; `api-key` header variant.
+- [x] P4b.6 Settings → provider picker, per-provider default model hints, Privacy lists all reachable hosts.
+- [x] P4b.7 Tests: HTTP mocks or stub provider per adapter; no real keys in CI.
 
 Done when: user can switch provider in Settings, test connection, and run the same Diagnosis flow; each new host is allowlisted and documented.
 
@@ -315,3 +315,5 @@ Add one dated line when a task is ticked or a decision changes.
 - 2026-10-11: P3 shipped. `monitoring/store.rs` + `monitor-history.sqlite`; compaction; Processes **Current health** + alert history filters; Settings retention + clear. Rust 57, JS 73, typecheck pass.
 - 2026-10-11: P4 BYOK foundation. OpenAI adapter + Keychain; `src/ai/*`; Settings **AI & Privacy**; alert **Explain with AI** preview dialog. Rust 62, JS 76, typecheck pass.
 - 2026-10-11: Roadmap **P4b** added (Wave 1 Anthropic/Gemini/Ollama + Wave 2 Groq/Together/OpenRouter/Azure). **P5** Diagnosis panel in inspector, fix planner, entry points from alerts/diagnostics/cleanup/processes.
+- 2026-10-11: **P4b.1–P4b.6** shipped locally — `src-tauri/src/ai/adapters/*`, provider router, Settings provider list, `baseUrl` for Ollama/Azure; P4b.7 tests deferred.
+- 2026-10-11: **P4b.7** — adapter JSON decode unit tests + `httpmock` OpenAI-compat integration on localhost (test-only allowlist); `FakeProvider` for diagnosis/chat.

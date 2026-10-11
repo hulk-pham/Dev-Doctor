@@ -1,11 +1,23 @@
 import type { DiagnosisAnchors } from "./fix-plan";
 import type { MonitorAlert, MonitorSample } from "../domain/types";
 
-export type AiProviderId = "openai";
+export type AiProviderId =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "ollama"
+  | "groq"
+  | "together"
+  | "openrouter"
+  | "azure"
+  /** Debug / `tauri dev` only — stripped in release builds. */
+  | "fake";
 
 export interface AiSettings {
   provider: AiProviderId;
   model: string;
+  /** Ollama / Azure OpenAI resource endpoint. */
+  baseUrl?: string | null;
 }
 
 export interface AiKeyStatus {
@@ -51,7 +63,8 @@ export type AiErrorCode =
   | "invalidSchema"
   | "contextTooLarge"
   | "unsupportedProvider"
-  | "providerMessage";
+  | "providerMessage"
+  | "cancelled";
 
 export interface AiError {
   code: AiErrorCode;
@@ -61,22 +74,38 @@ export interface AiError {
 export interface AlertContextInput {
   alert: MonitorAlert;
   latestSample?: MonitorSample | null;
-  projectPath?: string | null;
 }
 
 export type DiagnosisSourceKind = "alert" | "finding" | "artifact" | "process";
 
-export interface DiagnosisSession {
+export interface AiChatDraft {
   sourceKind: DiagnosisSourceKind;
-  /** Stable id for recheck (alert id, finding id, artifact path, or pid string). */
   sourceId: string;
   sourceLabel: string;
   items: AiContextItem[];
   anchors: DiagnosisAnchors;
-  result: AiDiagnosisResponse | null;
-  error: AiError | null;
-  sending: boolean;
-  baselineContext: string | null;
-  afterContext: string | null;
-  rechecking: boolean;
+}
+
+export type AiChatMessageKind = "chat" | "context";
+
+export interface AiChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAtMs: number;
+  kind?: AiChatMessageKind;
+  sourceLabel?: string;
+  diagnosis?: AiDiagnosisResponse;
+  anchors?: DiagnosisAnchors;
+}
+
+export interface AiChatThread {
+  id: string;
+  title: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+  messages: AiChatMessage[];
+  explainSource: AiChatDraft | null;
+  pinned?: boolean;
+  archived?: boolean;
 }

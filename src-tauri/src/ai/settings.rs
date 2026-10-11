@@ -14,6 +14,22 @@ pub struct AiSettings {
     pub provider: String,
     #[serde(default = "default_model")]
     pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+}
+
+pub fn default_model_for_provider(provider: &str) -> &'static str {
+    match provider.trim().to_lowercase().as_str() {
+        "anthropic" => "claude-sonnet-4-20250514",
+        "gemini" => "gemini-2.0-flash",
+        "ollama" => "llama3.2",
+        "groq" => "llama-3.3-70b-versatile",
+        "together" => "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "openrouter" => "openai/gpt-4o-mini",
+        "azure" => "gpt-4o-mini",
+        "fake" => "fake-model",
+        _ => DEFAULT_MODEL,
+    }
 }
 
 fn default_provider() -> String {
@@ -29,6 +45,7 @@ impl Default for AiSettings {
         Self {
             provider: DEFAULT_PROVIDER.into(),
             model: DEFAULT_MODEL.into(),
+            base_url: None,
         }
     }
 }
@@ -38,8 +55,19 @@ impl AiSettings {
         if self.provider.trim().is_empty() {
             self.provider = DEFAULT_PROVIDER.into();
         }
+        if self.provider == crate::ai::mock::MOCK_PROVIDER_ID && !cfg!(debug_assertions) {
+            self.provider = DEFAULT_PROVIDER.into();
+        }
         if self.model.trim().is_empty() {
-            self.model = DEFAULT_MODEL.into();
+            self.model = default_model_for_provider(&self.provider).into();
+        }
+        if let Some(url) = &self.base_url {
+            let trimmed = url.trim();
+            if trimmed.is_empty() {
+                self.base_url = None;
+            } else {
+                self.base_url = Some(trimmed.to_string());
+            }
         }
         self
     }
@@ -57,6 +85,9 @@ pub fn load_ai_settings(app: &AppHandle) -> Result<AiSettings, String> {
 }
 
 pub fn save_ai_settings(app: &AppHandle, settings: AiSettings) -> Result<AiSettings, String> {
+    if settings.provider == crate::ai::mock::MOCK_PROVIDER_ID && !cfg!(debug_assertions) {
+        return Err("Mock AI is only available in debug builds.".into());
+    }
     let settings = settings.normalized();
     let path = data_dir(app)?.join(FILE_NAME);
     let json = serde_json::to_string_pretty(&settings).map_err(|error| error.to_string())?;

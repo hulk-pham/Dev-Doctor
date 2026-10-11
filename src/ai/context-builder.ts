@@ -13,7 +13,7 @@ export function wrapUntrustedLogContent(raw: string): string {
 }
 
 export function buildAlertContextItems(input: AlertContextInput): AiContextItem[] {
-  const { alert, latestSample, projectPath } = input;
+  const { alert, latestSample } = input;
   const items: AiContextItem[] = [
     {
       id: "alert-core",
@@ -48,21 +48,10 @@ export function buildAlertContextItems(input: AlertContextInput): AiContextItem[
     });
   }
 
-  if (projectPath) {
-    items.push({
-      id: "project-path",
-      label: "Selected project path",
-      category: "path",
-      optIn: true,
-      included: false,
-      content: projectPath,
-    });
-  }
-
   return items;
 }
 
-export function buildFindingContextItems(finding: DiagnosticFinding, projectPath: string | null): AiContextItem[] {
+export function buildFindingContextItems(finding: DiagnosticFinding): AiContextItem[] {
   const items: AiContextItem[] = [
     {
       id: "finding-core",
@@ -81,20 +70,10 @@ export function buildFindingContextItems(finding: DiagnosticFinding, projectPath
       ].join("\n"),
     },
   ];
-  if (projectPath) {
-    items.push({
-      id: "project-path",
-      label: "Selected project path",
-      category: "path",
-      optIn: true,
-      included: false,
-      content: projectPath,
-    });
-  }
   return items;
 }
 
-export function buildArtifactContextItems(item: ArtifactFinding, projectPath: string | null): AiContextItem[] {
+export function buildArtifactContextItems(item: ArtifactFinding): AiContextItem[] {
   const items: AiContextItem[] = [
     {
       id: "artifact-core",
@@ -112,16 +91,6 @@ export function buildArtifactContextItems(item: ArtifactFinding, projectPath: st
       ].join("\n"),
     },
   ];
-  if (projectPath) {
-    items.push({
-      id: "project-path",
-      label: "Selected project path",
-      category: "path",
-      optIn: true,
-      included: false,
-      content: projectPath,
-    });
-  }
   return items;
 }
 
@@ -133,7 +102,6 @@ export function buildProcessContextItems(input: {
   cpuPercent?: number;
   memoryBytes?: number;
   tcpPorts?: number[];
-  projectPath?: string | null;
   matchedProjectPath?: string | null;
 }): AiContextItem[] {
   const items: AiContextItem[] = [
@@ -157,16 +125,6 @@ export function buildProcessContextItems(input: {
         .join("\n"),
     },
   ];
-  if (input.projectPath) {
-    items.push({
-      id: "project-path",
-      label: "Selected project path",
-      category: "path",
-      optIn: true,
-      included: false,
-      content: input.projectPath,
-    });
-  }
   return items;
 }
 

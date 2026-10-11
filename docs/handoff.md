@@ -1,34 +1,21 @@
 # Handoff
 
-Updated 2026-10-11. Branch `main`. Release **v0.4.0** on GitHub. **P4 + P5** on working tree (uncommitted).
+Updated 2026-10-11. Shipped **0.5.0** — AI chat BYOK, side panel, providers (committed).
 
-## Product
+## Shipped locally
 
-Local-first macOS app. Tauri 2 owns the machine. React renders findings. No telemetry.
-
-**Processes:** list, trends, alerts. **AI (BYOK):** OpenAI key in Keychain; **Explain with AI** opens the **Diagnosis** inspector (context review → send → steps with guarded actions). Entry: alerts, Diagnostics findings, Cleanup rows, process rows. Settings → **AI & Privacy**.
-
-Monitoring: SQLite history, retention, watchdog. Multi-provider adapters → roadmap **P4b** (not implemented).
-
-## Where to edit
-
-| Concern | File |
-| --- | --- |
-| Diagnosis panel + plan | `src/components/ai/DiagnosisPanel.tsx`, `src/ai/fix-plan.ts` |
-| Session / IPC | `src/state/AppState.tsx`, `src-tauri/src/ai/*` |
-| Context builders | `src/ai/context-builder.ts` |
-
-## Local (uncommitted)
-
-- P4 OpenAI BYOK; P5 diagnosis panel + fix planner + entry points.
-- Roadmap: **P4b** Wave 1 & 2 providers; P5 tasks ticked pending MCP verify.
-
-## Next
-
-- MCP: Explain flow on alert + Diagnostics + Cleanup + process row; confirm refused vs executable steps.
-- **P4b** when ready to ship multi-provider.
-- Optional release **0.5.0** after MCP.
+- **Explain deep link:** `openExplainSourceView` + header **View in …** (`explain-source-nav.ts`); Diagnostics finding ring + scroll; Processes PID select via `processesHighlightPid`.
+- **Assistant markdown:** `ChatMarkdown` on non-diagnosis assistant bubbles.
+- **After fix:** toast + ring next executable step on latest diagnosis card; `showToast` on app context.
+- **Side panel:** drag left edge to widen chat/inspector (persist `dev-doctor.inspector-width`); tighter padding above Chat/Project tabs.
+- **Projects:** intro line (like Processes); selector one line on non-workspace views.
+- Prior: `useAiChatState` / cancel HTTP / diagnosis cards / quick prompts / mock AI / P4b.7.
 
 ## Checks
 
-Logic: `npm test` (81), `cargo test --lib`, `npm run typecheck`. UI MCP 2026-10-11: Alerts hint khi chưa key; alert mở rộng không có Explain; inspector project OK. **Chưa** mở Diagnosis panel — `ai_key_status` / Save key trong session MCP vẫn “Not set” (Keychain có thể cần duyệt tay). Verify đầy đủ: Settings → Save key → Processes → Alerts → Explain → panel phải.
+`npm test` (91), `npm run typecheck` — pass this session. `cargo test --lib` unchanged.
+
+## Next
+
+- MCP UI verify chat panel (View in …, markdown, step highlight after mock fix).
+- Optional: Processes row scroll-into-view on PID highlight; Rust export cleanup.

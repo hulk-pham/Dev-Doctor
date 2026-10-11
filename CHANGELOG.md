@@ -2,6 +2,14 @@
 
 Versions match the app and the Git tags. The downloadable build is the latest tag on [Releases](https://github.com/hulk-pham/Dev-Doctor/releases).
 
+## 0.5.0 — 2026-10-11
+
+- **AI chat (BYOK)** in the side panel: multi-turn threads, **Explain with AI** from Diagnostics, Cleanup, Processes, and alerts, structured diagnosis cards with in-thread fix/re-check steps, and cancellable provider requests.
+- **Providers:** OpenAI-compatible APIs, Anthropic, Gemini, Azure, Ollama, and dev-only mock AI for local testing without Keychain.
+- **Side panel:** Chat and Project tabs, resizable width (320–480px), chat history pinned/archived in local storage.
+- **Projects** screen intro line; compact project selector on non-workspace views.
+- Settings use grouped AI fields; API keys stay in the macOS Keychain.
+
 ## 0.4.0 — 2026-10-11
 
 - **Processes** combines the process list with **Trends** (CPU, memory pressure, disk charts) and **Alerts** (watchdog history with filters). Optional background sampling; macOS notifications on new alerts.

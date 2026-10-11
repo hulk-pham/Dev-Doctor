@@ -9,6 +9,8 @@ export function ProjectSelector({ disabled = false }: { disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const seen = new Set<string>();
+  const compact = state.view !== "workspace";
+
   const recent = state.history.filter((entry) => {
     if (seen.has(entry.projectPath)) return false;
     seen.add(entry.projectPath);
@@ -38,10 +40,20 @@ export function ProjectSelector({ disabled = false }: { disabled?: boolean }) {
       >
         <FolderOpen size={15} className="shrink-0 text-muted" />
         <span className="min-w-0 flex-1 leading-tight">
-          <span className="block truncate text-[13px]">{state.projectPath ? basename(state.projectPath) : "Select a folder"}</span>
-          <span className="block truncate font-mono text-[11px] text-muted">
-            {state.projectPath ?? "No folder selected"}
-          </span>
+          {compact ? (
+            <span className="block truncate text-[13px]">
+              {state.projectPath ? basename(state.projectPath) : "Select a folder"}
+            </span>
+          ) : (
+            <>
+              <span className="block truncate text-[13px]">
+                {state.projectPath ? basename(state.projectPath) : "Select a folder"}
+              </span>
+              <span className="block truncate font-mono text-[11px] text-muted">
+                {state.projectPath ?? "No folder selected"}
+              </span>
+            </>
+          )}
         </span>
         <ChevronDown size={14} className="shrink-0 text-muted" />
       </button>

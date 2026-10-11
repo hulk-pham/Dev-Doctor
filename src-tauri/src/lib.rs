@@ -16,9 +16,11 @@ use probe::{execute_install, inspect_listen_port, FixExecutionResult, PortInspec
 use security::ensure_allowed_url;
 use serde::Serialize;
 use ai::{
-    delete_api_key, diagnose, has_api_key, load_ai_settings, save_ai_settings, store_api_key, test_connection,
-    AiDiagnosisResponse, AiError, AiErrorCode, AiSettings, ApiKeyProvider,
+    chat_async, delete_api_key, diagnose_async, is_configured_for_settings, load_ai_settings, save_ai_settings,
+    store_api_key, test_connection, AiChatTurn, AiDiagnosisResponse, AiError, AiErrorCode, AiInflight, AiSettings,
+    ApiKeyProvider,
 };
+use tokio::sync::oneshot;
 use monitoring::{
     load_settings, save_settings, AlertHistoryQuery, MonitorAlert, MonitorHandle, MonitorSample, MonitorSettings,
     MonitorStatus, MonitorStorage, MonitorStorageStatus,
@@ -220,9 +222,8 @@ fn ai_settings_save(app: tauri::AppHandle, settings: AiSettings) -> Result<AiSet
 #[tauri::command]
 fn ai_key_status(app: tauri::AppHandle) -> Result<AiKeyStatus, String> {
     let settings = load_ai_settings(&app)?;
-    let provider = ApiKeyProvider::from_settings_id(&settings.provider)?;
     Ok(AiKeyStatus {
-        configured: has_api_key(provider)?,
+        configured: is_configured_for_settings(&settings)?,
         provider: settings.provider,
     })
 }
@@ -230,6 +231,9 @@ fn ai_key_status(app: tauri::AppHandle) -> Result<AiKeyStatus, String> {
 #[tauri::command]
 fn ai_key_save(app: tauri::AppHandle, api_key: String) -> Result<AiKeyStatus, String> {
     let settings = load_ai_settings(&app)?;
+    if ai::is_dev_mock_provider(&settings.provider) {
+        return ai_key_status(app);
+    }
     let provider = ApiKeyProvider::from_settings_id(&settings.provider)?;
     store_api_key(provider, &api_key)?;
     ai_key_status(app)
@@ -238,6 +242,9 @@ fn ai_key_save(app: tauri::AppHandle, api_key: String) -> Result<AiKeyStatus, St
 #[tauri::command]
 fn ai_key_delete(app: tauri::AppHandle) -> Result<AiKeyStatus, String> {
     let settings = load_ai_settings(&app)?;
+    if ai::is_dev_mock_provider(&settings.provider) {
+        return ai_key_status(app);
+    }
     let provider = ApiKeyProvider::from_settings_id(&settings.provider)?;
     delete_api_key(provider)?;
     ai_key_status(app)
@@ -250,16 +257,80 @@ fn ai_settings_err(message: String) -> AiError {
     }
 }
 
-#[tauri::command]
-fn ai_test_connection(app: tauri::AppHandle) -> Result<(), AiError> {
-    let settings = load_ai_settings(&app).map_err(ai_settings_err)?;
-    test_connection(&settings)
+fn ai_join_err(error: tauri::Error) -> AiError {
+    AiError {
+        code: AiErrorCode::ProviderMessage,
+        message: error.to_string(),
+    }
+}
+
+async fn run_cancellable_ai<T, Fut>(app: &tauri::AppHandle, work: Fut) -> Result<T, AiError>
+where
+    T: Send + 'static,
+    Fut: std::future::Future<Output = Result<T, AiError>> + Send + 'static,
+{
+    let inflight = app.state::<AiInflight>();
+    inflight.cancel();
+    let (tx, rx) = oneshot::channel();
+    let handle = tauri::async_runtime::spawn(async move {
+        let _ = tx.send(work.await);
+    });
+    inflight.track(handle);
+    match rx.await {
+        Ok(result) => {
+            inflight.clear();
+            result
+        }
+        Err(_) => Err(AiError {
+            code: AiErrorCode::Cancelled,
+            message: "Request cancelled.".into(),
+        }),
+    }
 }
 
 #[tauri::command]
-fn ai_diagnose(app: tauri::AppHandle, context_text: String) -> Result<AiDiagnosisResponse, AiError> {
-    let settings = load_ai_settings(&app).map_err(ai_settings_err)?;
-    diagnose(&settings, &context_text)
+fn ai_cancel_inflight(app: tauri::AppHandle) {
+    app.state::<AiInflight>().cancel();
+}
+
+#[tauri::command]
+async fn ai_test_connection(app: tauri::AppHandle) -> Result<(), AiError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = load_ai_settings(&app).map_err(ai_settings_err)?;
+        test_connection(&settings)
+    })
+    .await
+    .map_err(ai_join_err)?
+}
+
+#[tauri::command]
+async fn ai_diagnose(app: tauri::AppHandle, context_text: String) -> Result<AiDiagnosisResponse, AiError> {
+    let app2 = app.clone();
+    run_cancellable_ai(&app, async move {
+        let settings = load_ai_settings(&app2).map_err(ai_settings_err)?;
+        diagnose_async(&settings, &context_text).await
+    })
+    .await
+}
+
+#[tauri::command]
+async fn ai_chat(app: tauri::AppHandle, messages: Vec<AiChatTurn>) -> Result<String, AiError> {
+    let app2 = app.clone();
+    run_cancellable_ai(&app, async move {
+        let settings = load_ai_settings(&app2).map_err(ai_settings_err)?;
+        chat_async(&settings, &messages).await
+    })
+    .await
+}
+
+#[tauri::command]
+fn ai_chat_store_load(app: tauri::AppHandle, scope: String) -> Result<Option<String>, String> {
+    ai::load_chat_store_json(&app, &scope)
+}
+
+#[tauri::command]
+fn ai_chat_store_save(app: tauri::AppHandle, scope: String, json: String) -> Result<(), String> {
+    ai::save_chat_store_json(&app, &scope, &json)
 }
 
 #[tauri::command]
@@ -305,6 +376,7 @@ pub fn run() {
             }
             app.manage(storage);
             app.manage(monitor);
+            app.manage(AiInflight::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -342,7 +414,11 @@ pub fn run() {
             ai_key_save,
             ai_key_delete,
             ai_test_connection,
-            ai_diagnose
+            ai_diagnose,
+            ai_chat,
+            ai_cancel_inflight,
+            ai_chat_store_load,
+            ai_chat_store_save
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
