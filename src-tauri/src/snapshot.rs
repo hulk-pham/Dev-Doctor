@@ -59,6 +59,7 @@ pub struct ProjectSnapshot {
     pub npm: ToolProbe,
     pub pnpm: ToolProbe,
     pub is_sample: bool,
+    pub ecosystem: Option<String>,
 }
 
 pub fn collect_project_snapshot(project_path: &str) -> Result<ProjectSnapshot, String> {
@@ -69,9 +70,16 @@ pub fn collect_project_snapshot(project_path: &str) -> Result<ProjectSnapshot, S
         .unwrap_or("project")
         .to_string();
     let package_json = read_package_json(&root);
+    let ecosystem = crate::layout::ecosystem_at(&root).map(str::to_string);
+    let probe_node = crate::layout::has_node_marker(&root);
     let node_modules_exists = root.join("node_modules").is_dir();
     let (missing_dependency_names, dependency_check_note) =
         missing_dependencies(&root, &package_json, node_modules_exists);
+    let skipped = ToolProbe {
+        available: false,
+        version: None,
+        error: None,
+    };
     Ok(ProjectSnapshot {
         canonical_path: root.to_string_lossy().to_string(),
         folder_name,
@@ -81,11 +89,12 @@ pub fn collect_project_snapshot(project_path: &str) -> Result<ProjectSnapshot, S
         dependency_check_note,
         env: read_env(&root),
         git: read_git(&root),
-        node: probe_version("node"),
-        npm: probe_version("npm"),
-        pnpm: probe_version("pnpm"),
+        node: if probe_node { probe_version("node") } else { skipped.clone() },
+        npm: if probe_node { probe_version("npm") } else { skipped.clone() },
+        pnpm: if probe_node { probe_version("pnpm") } else { skipped },
         is_sample: root.join(".dev-doctor-sample").is_file(),
         package_json,
+        ecosystem,
     })
 }
 

@@ -68,8 +68,8 @@ One row in **`AppShell`**: `ProjectChromeBar` + `ProjectSelector` (`src/componen
 | Rule | Detail |
 | --- | --- |
 | Height | **`h-12`** row, **`h-9`** selector + primary action — always `items-center` |
-| Same everywhere | Workspace shows Scan; other views with a project show Open workspace — **never** a second read-only path bar |
-| Visibility | Workspace: always; Projects/Processes: only when `projectPath` set; Settings: hidden |
+| Same everywhere | Workspace shows Scan; every other view shows Open workspace — **never** a second read-only path bar |
+| Visibility | Every view, including Settings, even when no folder is selected |
 | Do not | Duplicate selector inside `WorkspacePage`; do not use `flex-wrap` on this row (wrap changes height) |
 
 ## UI rules (pairs with `.cursor/rules/ui-chrome.mdc`)
@@ -92,17 +92,18 @@ One row in **`AppShell`**: `ProjectChromeBar` + `ProjectSelector` (`src/componen
 
 ## Processes & ports (single model)
 
-**Authoritative doc:** this section. Toolbar layout for Processes is **Dev | All · Pause · Refresh** only.
+**Authoritative doc:** this section. Toolbar layout for Processes is **Dev | All · This project switch · search · time · Pause · Refresh**.
 
 | Intent | Where | Why |
 | --- | --- | --- |
 | See who listens | **Process rows** (`:3000` on the row + detail) | Primary surface — user scans the list |
-| “Who has port N?” (known number) | **Diagnostics → Ports** → type port → **Find in Processes** | Question starts from project scan context; jumps to Processes with highlight + selection — **no port field on Processes** |
+| Find a process by name or port | **Search field** on the Processes toolbar | One field matches the process name, command, or listen port |
+| “Who has port N?” from a scan | **Diagnostics → Ports** → **Find in Processes** | Fills that same search field and highlights the row |
 | Stop a server | Row → detail → Stop | Action stays with the process |
 
-- **Do not** put a port search box on the Processes toolbar or above the list.
-- **Do not** add a second card labeled “Find port” beside the list.
-- After a deep link, Processes may show a **one-line chip** (e.g. `Port 3000 · Clear`) — not a permanent search control.
+- **Do not** add a second search card beside the list.
+- After a deep link, Processes may still show a **one-line chip** (e.g. `Port 3000 · Clear`).
+- The clock sits to the left of Pause and Refresh.
 
 Many Node processes are clients, not listeners—omit port text on rows with no listeners.
 

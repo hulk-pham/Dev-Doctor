@@ -1,6 +1,7 @@
 import { Activity, FolderGit2, LayoutDashboard, PanelLeft, PanelRight, Settings } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
+import { UpdatePrompt } from "../UpdatePrompt";
 import { ProjectChromeBar } from "./ProjectChromeBar";
 import { windowChrome, type ChromeButton } from "../../services/tauri";
 import { useAppState, type View } from "../../state/AppState";
@@ -127,6 +128,7 @@ export function AppShell() {
       </aside>
       </div>
 
+      <UpdatePrompt />
       {state.toast ? (
         <div className="fixed bottom-3 right-3 border border-border bg-panel px-3 py-1.5 text-[12px]">{state.toast}</div>
       ) : null}

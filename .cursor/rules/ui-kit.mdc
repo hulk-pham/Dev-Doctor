@@ -6,20 +6,22 @@ alwaysApply: false
 
 # UI kit (mandatory for UI)
 
-**Spec:** `docs/product/ui-kit.md`. **Code:** `screen-toolbar.tsx`, `SegmentedFilter`, `FilterMenu`, `FilterChip`, `ui-layout.ts`.
+**Spec:** `docs/product/ui-kit.md`. **Code:** `screen-toolbar.tsx`, `SegmentedFilter`, `Switch`, `FilterMenu`, `FilterChip`, `ui-layout.ts`.
 
 ## Non-negotiable
 
 1. **Toolbars** — `ScreenToolbar` + `filterToolbar`; no `insetBar`, no rounded gray wrapper.
 2. **Scope** — `SegmentedFilter` only (filled default = active scope).
 3. **Toolbar actions** (pause, refresh, …) — **`ToolbarIconButton`**, not text `Button` sm beside scope.
-4. **Optional toggles** on toolbar — **`FilterChip`**, not scope buttons.
-5. **Section nav** — underline tabs (`WorkspaceSegments`), not pill buttons.
-6. **Secondary filter menu** — `FilterMenu` in **`ToolbarEnd`** (`ml-auto`).
-7. **Findings** — `findingRowAccent` + badge.
+4. **On/off filters** — **`Switch`** (knob track), never a second `SegmentedFilter`. Processes uses it for **This project**. Scope stays `SegmentedFilter` (Dev · All). Search by name or port is one field. The clock sits left of Pause and Refresh.
+5. **Toasts** — one line, gone after 2.4s. Call `showToast` only. Never `setToast` from a feature, and never leave a message up until the next click.
+6. **Section nav** — underline tabs (`WorkspaceSegments`), not pill buttons.
+7. **Secondary filter menu** — `FilterMenu` in **`ToolbarEnd`** (`ml-auto`).
+8. **Findings** — `findingRowAccent` + badge.
 
 When adding a control, match an existing row in `ui-kit.md` — do not invent a third tab style.
 
 # Notes
 
 - 2026-10-11: Processes Pause/Refresh were icon-only; scope Dev/All uses SegmentedFilter like Diagnostics.
+- 2026-10-11: This project is a `Switch`, not a segmented pair. Toasts dismiss after 2.4s via `showToast`.

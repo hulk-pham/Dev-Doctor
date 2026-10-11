@@ -20,6 +20,9 @@ dist-ssr
 !fixtures/sample-node-app/.env.example
 fixtures/**/node_modules
 
+# Draft posts. Keep them local.
+docs/blog/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

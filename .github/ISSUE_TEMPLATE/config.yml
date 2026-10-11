@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install troubleshooting
+    url: https://github.com/hulk-pham/Dev-Doctor/blob/main/docs/install.md
+    about: Gatekeeper, Apple silicon, and first launch.
+  - name: Documentation
+    url: https://github.com/hulk-pham/Dev-Doctor/blob/main/docs/documentation.md
+    about: What each screen does.

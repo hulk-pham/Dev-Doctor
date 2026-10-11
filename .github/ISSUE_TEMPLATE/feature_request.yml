@@ -1,0 +1,24 @@
+name: Feature request
+description: A change to how Dev Doctor should work.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should the app do?
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Does this need network or project data to leave the Mac?
+      description: Dev Doctor does not send project contents. Say if the idea would change that.
+    validations:
+      required: true

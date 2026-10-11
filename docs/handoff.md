@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-11. Branch `main`. Release `v0.2.0` includes Processes, workspace UX, and the README showcase.
+Updated 2026-10-11. Branch `main`. Release `v0.3.0` is the unsigned Apple silicon build. Read `CONTRIBUTING.md` to verify from source.
 
 ## Product
 
@@ -40,12 +40,12 @@ Scan history: `scan-history.json`, includes `artifactListedBytes`. Cleanup histo
 
 ## Local (uncommitted)
 
-- **Processes (M3):** rows show TCP listen ports; toolbar **Dev / All · Pause · Refresh** only (no port search—see `docs/product/design-principles.md`). Port lookup: Diagnostics → Find in Processes → highlight chip on Processes. Project rows highlighted; stop after confirm.
-- **Agent rules:** one always-on `dev-doctor.mdc`; detail rules by glob — see `AGENTS.md`.
+- **Menu bar icon:** a template icon (circle with a plus) on the right side of the macOS menu bar. Click it for Show Dev Doctor, Workspace, Projects, Processes, Scan, Refresh, Settings, Check for Updates, Quit. The left-side Dev Doctor menu still exists when the window is focused.
+- **Updates:** GitHub release check. Newer version opens a dialog with Download, Remind me later, Skip this version.
+- **Processes toolbar:** Dev / All · This project switch · name-or-port search · time · Pause · Refresh. Project row stays on every screen, including when no folder is selected. Toasts dismiss after 2.4s.
+- **Scan scope:** a parent of several projects is refused and listed. One nested project is opened. No manifest means no npm/Node checks. A manifest at the root is still one project (monorepo).
 - **No sample in UI** — `fixtures/sample-node-app` for tests/`cargo test` only.
-- **README** — showcase only (`product-showcase.png`). Contributor notes: `docs/development.md`.
-- **History (M4):** scan history stores measured folder total; cleanup history stores reclaimed bytes and paths. Workspace dashboard and Cleanup page show recent cleanup entries.
-- **Docs/rules:** `docs/handoff.md`, `docs/roadmap/05-milestones.md`, `AGENTS.md`, `.cursor/rules/dev-doctor.mdc`.
+- **Docs:** README is screenshot, then value, then download. Showcase is a dark lockup with a larger logo and a Cleanup window at the lower left (`npm run screenshots:showcase`). Changelog, `docs/install.md`, and GitHub issue templates are in the repo. No GitHub Actions workflow. `docs/blog/` is gitignored.
 
 ## Product docs (for agents)
 
@@ -55,10 +55,8 @@ Scan history: `scan-history.json`, includes `artifactListedBytes`. Cleanup histo
 
 ## Next (product)
 
-- MCP pass after `tauri dev` (Diagnostics flat toolbar + finding accents).
-- Optional: ⌘F find overlay; Cleanup footer offset with inspector width; tune collapsible defaults
-- Backlog history: `docs/product/ux-direction-v2.md`, `docs/product/ux-review.md`
-- Commit when asked (single commit or split M3 vs M4 is fine).
+- Commit when asked.
+- Optional: ⌘F find overlay; Cleanup footer offset with inspector width.
 - Do not start Docker, watchdog, or scheduled cleanup unless the user asks.
 
 ## Not started

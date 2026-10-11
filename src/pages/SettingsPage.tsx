@@ -74,6 +74,12 @@ export function SettingsPage() {
       <section className="rounded-xl border border-border bg-panel p-4">
         <h2 className="text-sm font-medium">Version</h2>
         <p className="mt-1 font-mono text-sm">{state.appVersion}</p>
+        <p className="mt-2 text-sm text-muted">
+          Check for Updates looks up the latest GitHub release. It does not send project files.
+        </p>
+        <Button className="mt-3" size="sm" variant="secondary" disabled={state.updateChecking} onClick={() => void state.checkForUpdates(true)}>
+          {state.updateChecking ? "Checking…" : "Check for updates"}
+        </Button>
       </section>
     </div>
   );

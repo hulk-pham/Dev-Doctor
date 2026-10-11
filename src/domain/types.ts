@@ -153,6 +153,7 @@ export interface ProjectSnapshot {
   npm: ToolProbe;
   pnpm: ToolProbe;
   isSample: boolean;
+  ecosystem: string | null;
 }
 
 export interface PortInspection {

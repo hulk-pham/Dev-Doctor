@@ -157,4 +157,48 @@ describe("diagnostic engine", () => {
     expect(summarizeFindings(findings).passed).toBe(1);
     expect(findings).toHaveLength(2);
   });
+
+  it("skips npm checks when the folder is not a source project", () => {
+    const scan = buildScanResult(
+      emptySnapshot({
+        ecosystem: null,
+        packageJson: {
+          present: false,
+          parseError: null,
+          readError: null,
+          name: null,
+          enginesNode: null,
+          enginesNodeError: null,
+          dependencyNames: [],
+          devDependencyNames: [],
+        },
+        lockfiles: [],
+      }),
+    );
+    expect(scan.project.projectType).toBe("Not a source project");
+    expect(scan.findings.some((finding) => finding.id === "not-a-source-project")).toBe(true);
+    expect(scan.findings.some((finding) => finding.id === "package-json-missing" || finding.id === "npm-missing" || finding.id === "node-missing")).toBe(false);
+  });
+
+  it("skips npm checks for a non-node manifest", () => {
+    const scan = buildScanResult(
+      emptySnapshot({
+        ecosystem: "rust",
+        packageJson: {
+          present: false,
+          parseError: null,
+          readError: null,
+          name: null,
+          enginesNode: null,
+          enginesNodeError: null,
+          dependencyNames: [],
+          devDependencyNames: [],
+        },
+        lockfiles: [],
+      }),
+    );
+    expect(scan.project.projectType).toBe("Rust");
+    expect(scan.findings.some((finding) => finding.id === "ecosystem-not-node")).toBe(true);
+    expect(scan.findings.some((finding) => finding.id === "npm-missing" || finding.id === "package-json-missing")).toBe(false);
+  });
 });

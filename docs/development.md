@@ -17,7 +17,7 @@ Then:
 npm run screenshots:showcase
 ```
 
-That writes `docs/screenshots/product-showcase.png`: full screenshots, upright. Diagnostics is largest and in front. Overview and Cleanup are smaller behind it.
+That writes `docs/screenshots/product-showcase.png`: a dark lockup. The side windows are cropped to their content, tilted, and faded into a blurred backdrop. Capture those sources in dark mode.
 
 ## Tests and fixture
 
@@ -86,7 +86,7 @@ Installs are refused outside user and temporary folders, and for any action othe
 - History is JSON in the app data directory, shown on Settings. Assignments that look like `NAME=value` are redacted again before save.
 - The frontend permission set is `core:default` and the folder dialog. It does not include a shell or a general filesystem scope.
 - Documentation URLs must match an exact allowlist.
-- There is no account or analytics. Network use is the package manager you confirm, and documentation pages you open.
+- There is no account or analytics. Network use is the package manager you confirm, documentation pages you open, and **Check for Updates**, which requests the GitHub release only. Project paths and file contents are not uploaded.
 
 ## macOS signing and notarization
 

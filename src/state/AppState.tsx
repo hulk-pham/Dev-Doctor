@@ -19,8 +19,8 @@ import { buildScanResult } from "../diagnostics/engine";
 import { validateFixRequest, validateProjectPath } from "../diagnostics/paths";
 import { validatePort } from "../diagnostics/ports";
 import { errorMessage } from "../lib/utils";
-import { appMetadata, collectSnapshot, deleteArtifacts, executeFix, inspectPort, loadCleanupHistory, loadHistory, openAllowedUrl, saveCleanupHistory, saveHistory, scanArtifacts, type ArtifactScanProgress } from "../services/tauri";
-import { applyTheme, readSettings, writeSettings, type Settings } from "./settings";
+import { appMetadata, checkForUpdate, classifyFolder, collectSnapshot, deleteArtifacts, executeFix, inspectPort, loadCleanupHistory, loadHistory, openAllowedUrl, saveCleanupHistory, saveHistory, scanArtifacts, type ArtifactScanProgress, type FolderLayout, type UpdateCheck } from "../services/tauri";
+import { applyTheme, readSettings, UPDATE_REMIND_MS, writeSettings, type Settings } from "./settings";
 
 export type View = "workspace" | "projects" | "processes" | "settings";
 export type WorkspaceTab = "dashboard" | "diagnostics" | "cleanup";
@@ -58,6 +58,7 @@ interface AppStateValue {
   toast: string | null;
   chooseFolder: () => Promise<void>;
   scanCurrent: () => Promise<void>;
+  scanFolder: (path: string) => Promise<void>;
   openHistoryEntry: (entry: ScanHistoryEntry) => void;
   inspectPortNumber: (value: string, options?: { openDiagnostics?: boolean }) => Promise<PortInspection | null>;
   diagnosticsFocus: DiagnosticsFocus;
@@ -66,6 +67,16 @@ interface AppStateValue {
   openProcessesFindPort: (port: string) => void;
   openProjectInWorkspace: (projectPath: string) => void;
   clearProcessesPortQuery: () => void;
+  boundary: FolderLayout | null;
+  openedInside: string | null;
+  processesNonce: number;
+  updateOffer: UpdateCheck | null;
+  updateChecking: boolean;
+  checkForUpdates: (manual?: boolean) => Promise<void>;
+  remindUpdateLater: () => void;
+  skipUpdateVersion: () => void;
+  downloadUpdate: () => Promise<void>;
+  dismissUpdate: () => void;
   copyText: (text: string, message?: string) => Promise<void>;
   openDocs: (url: string) => Promise<void>;
   runConfirmedFix: (suggestion: FixSuggestion) => Promise<FixExecutionResult>;
@@ -110,6 +121,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [portResult, setPortResult] = useState<PortInspection | null>(null);
   const [inspectingPort, setInspectingPort] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [boundary, setBoundary] = useState<FolderLayout | null>(null);
+  const [openedInside, setOpenedInside] = useState<string | null>(null);
+  const [processesNonce, setProcessesNonce] = useState(0);
+  const [updateOffer, setUpdateOffer] = useState<UpdateCheck | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
   const [diagnosticsFocus, setDiagnosticsFocus] = useState<DiagnosticsFocus>("all");
   const [processesPortQuery, setProcessesPortQuery] = useState<string | null>(null);
   const desktop = isTauri();
@@ -130,8 +146,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const showToast = useCallback((message: string) => {
     setToast(message);
-    window.setTimeout(() => setToast((current) => (current === message ? null : current)), 2400);
   }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const updateSettings = useCallback((next: Settings) => {
     setSettings(next);
@@ -150,12 +171,44 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setScanError(check.reason);
         return;
       }
+      let layout: FolderLayout;
+      try {
+        layout = await classifyFolder(check.path);
+      } catch (error) {
+        setScanError(errorMessage(error));
+        return;
+      }
+      if (layout.kind === "boundary") {
+        if (scanningRef.current) return;
+        setBoundary(layout);
+        setOpenedInside(null);
+        setProjectPath(layout.canonicalPath);
+        setScan(null);
+        setScanOrigin(null);
+        setCleanupListedBytes(null);
+        setArtifactFindings([]);
+        setArtifactWarnings([]);
+        setArtifactError(null);
+        setScanError(null);
+        setView("workspace");
+        setWorkspaceTab("dashboard");
+        return;
+      }
+      const nested = layout.kind === "nested" ? layout.projects[0] : undefined;
+      const destination = nested?.path ?? check.path;
+      const destinationCheck = destination === check.path ? check : validateProjectPath(destination);
+      if (!destinationCheck.ok) {
+        setScanError(destinationCheck.reason);
+        return;
+      }
       if (scanningRef.current) return;
       scanningRef.current = true;
       const startedAt = Date.now();
+      setBoundary(null);
+      setOpenedInside(nested?.name ?? null);
       setScanning(true);
       setScanError(null);
-      setProjectPath(check.path);
+      setProjectPath(destinationCheck.path);
       setCleanupListedBytes(null);
       setArtifactFindings([]);
       setArtifactWarnings([]);
@@ -166,8 +219,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setWorkspaceTab("dashboard");
       try {
         const [snapshotOutcome, artifactOutcome] = await Promise.allSettled([
-          collectSnapshot(check.path),
-          scanArtifacts(check.path),
+          collectSnapshot(destinationCheck.path),
+          scanArtifacts(destinationCheck.path),
         ]);
         let listedBytes: number | null = null;
         if (artifactOutcome.status === "fulfilled") {
@@ -180,6 +233,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           setArtifactError(errorMessage(artifactOutcome.reason));
         }
         if (snapshotOutcome.status === "fulfilled") {
+          setProjectPath(snapshotOutcome.value.canonicalPath);
           const result = buildScanResult(snapshotOutcome.value);
           const nextHistory = prependHistory(historyRef.current, toHistoryEntry(result, listedBytes));
           historyRef.current = nextHistory;
@@ -222,6 +276,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         return;
       }
       setProjectPath(check.path);
+      setBoundary(null);
+      setOpenedInside(null);
       setScan(null);
       setScanOrigin(null);
       setScanError(null);
@@ -266,7 +322,100 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const clearProcessesPortQuery = useCallback(() => setProcessesPortQuery(null), []);
 
+  const checkForUpdates = useCallback(
+    async (manual = false) => {
+      if (!desktop) {
+        if (manual) showToast("Update check runs in the desktop app.");
+        return;
+      }
+      setUpdateChecking(true);
+      try {
+        const result = await checkForUpdate();
+        if (result.status === "available" && result.latestVersion) {
+          const settings = settingsRef.current;
+          const skipped = settings.skippedUpdateVersion === result.latestVersion;
+          const remindAt = settings.updateRemindAt ? Date.parse(settings.updateRemindAt) : Number.NaN;
+          const waiting = Number.isFinite(remindAt) && remindAt > Date.now();
+          if (!manual && (skipped || waiting)) return;
+          setUpdateOffer(result);
+          return;
+        }
+        setUpdateOffer(null);
+        if (manual) showToast(result.message);
+      } catch (error) {
+        if (manual) showToast(errorMessage(error));
+      } finally {
+        setUpdateChecking(false);
+      }
+    },
+    [desktop, showToast],
+  );
+
+  const remindUpdateLater = useCallback(() => {
+    const next = { ...settingsRef.current, updateRemindAt: new Date(Date.now() + UPDATE_REMIND_MS).toISOString() };
+    settingsRef.current = next;
+    setSettings(next);
+    writeSettings(next);
+    setUpdateOffer(null);
+  }, []);
+
+  const skipUpdateVersion = useCallback(() => {
+    const version = updateOffer?.latestVersion;
+    if (!version) {
+      setUpdateOffer(null);
+      return;
+    }
+    const next = { ...settingsRef.current, skippedUpdateVersion: version, updateRemindAt: null };
+    settingsRef.current = next;
+    setSettings(next);
+    writeSettings(next);
+    setUpdateOffer(null);
+  }, [updateOffer]);
+
+  const downloadUpdate = useCallback(async () => {
+    const url = updateOffer?.url;
+    if (!url) return;
+    await openAllowedUrl(url);
+    setUpdateOffer(null);
+  }, [updateOffer]);
+
+  const dismissUpdate = useCallback(() => setUpdateOffer(null), []);
+
+  useEffect(() => {
+    if (!desktop) return;
+    void checkForUpdates(false);
+  }, [desktop, checkForUpdates]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let unlisten: (() => void) | undefined;
+    let alive = true;
+    void listen<string>("menu-action", (event) => {
+      if (!alive) return;
+      const id = event.payload;
+      if (id === "settings") setView("settings");
+      if (id === "nav-workspace") setView("workspace");
+      if (id === "nav-projects") setView("projects");
+      if (id === "nav-processes") setView("processes");
+      if (id === "scan-project") void scanCurrent();
+      if (id === "refresh-processes") {
+        setView("processes");
+        setProcessesNonce((nonce) => nonce + 1);
+      }
+      if (id === "check-updates") void checkForUpdates(true);
+    }).then((stop) => {
+      if (alive) unlisten = stop;
+      else stop();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, [desktop, scanCurrent, checkForUpdates]);
+
   const openHistoryEntry = useCallback((entry: ScanHistoryEntry) => {
+    setBoundary(null);
+    setOpenedInside(null);
     setProjectPath(entry.projectPath);
     setScan(scanFromHistory(entry));
     setScanOrigin("history");
@@ -292,6 +441,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         return;
       }
       setProjectPath(check.path);
+      setBoundary(null);
+      setOpenedInside(null);
       setScan(null);
       setScanOrigin(null);
       setCleanupListedBytes(null);
@@ -436,6 +587,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             return;
           }
           setProjectPath(check.path);
+          setBoundary(null);
+          setOpenedInside(null);
           setScan(null);
           setScanOrigin(null);
           setCleanupListedBytes(null);
@@ -514,6 +667,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       toast,
       chooseFolder,
       scanCurrent,
+      scanFolder: scanPath,
       openHistoryEntry,
       inspectPortNumber,
       diagnosticsFocus,
@@ -522,6 +676,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       openProcessesFindPort,
       openProjectInWorkspace,
       clearProcessesPortQuery,
+      boundary,
+      openedInside,
+      processesNonce,
+      updateOffer,
+      updateChecking,
+      checkForUpdates,
+      remindUpdateLater,
+      skipUpdateVersion,
+      downloadUpdate,
+      dismissUpdate,
       copyText,
       openDocs,
       runConfirmedFix,
@@ -555,6 +719,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       toast,
       chooseFolder,
       scanCurrent,
+      scanPath,
       openHistoryEntry,
       inspectPortNumber,
       diagnosticsFocus,
@@ -563,6 +728,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       openProcessesFindPort,
       openProjectInWorkspace,
       clearProcessesPortQuery,
+      boundary,
+      openedInside,
+      processesNonce,
+      updateOffer,
+      updateChecking,
+      checkForUpdates,
+      remindUpdateLater,
+      skipUpdateVersion,
+      downloadUpdate,
+      dismissUpdate,
       copyText,
       openDocs,
       runConfirmedFix,

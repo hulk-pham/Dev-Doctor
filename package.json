@@ -1,7 +1,7 @@
 {
   "name": "dev-doctor",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first macOS diagnostics for development projects.",
   "license": "MIT",
   "type": "module",

@@ -24,6 +24,7 @@ pub const ALLOWED_URLS: &[&str] = &[
     "https://docs.npmjs.com/cli/commands/npm-install",
     "https://pnpm.io/installation",
     "https://git-scm.com/downloads",
+    "https://github.com/hulk-pham/Dev-Doctor/releases",
 ];
 
 pub struct FixSpec {
@@ -77,11 +78,21 @@ pub fn validate_fix_path(input: &str) -> Result<PathBuf, String> {
 }
 
 pub fn ensure_allowed_url(url: &str) -> Result<(), String> {
-    if ALLOWED_URLS.contains(&url) {
+    if ALLOWED_URLS.contains(&url) || is_release_tag_url(url) {
         Ok(())
     } else {
         Err("That URL is not in the documentation allowlist.".into())
     }
+}
+
+fn is_release_tag_url(url: &str) -> bool {
+    let Some(tag) = url.strip_prefix("https://github.com/hulk-pham/Dev-Doctor/releases/tag/") else {
+        return false;
+    };
+    !tag.is_empty()
+        && tag
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_'))
 }
 
 pub fn resolve_fix(action: &str) -> Result<FixSpec, String> {
@@ -209,6 +220,8 @@ mod tests {
         assert!(resolve_fix("git reset --hard").is_err());
         assert!(ensure_allowed_url("https://nodejs.org/en/download").is_ok());
         assert!(ensure_allowed_url("https://example.com").is_err());
+        assert!(ensure_allowed_url("https://github.com/hulk-pham/Dev-Doctor/releases/tag/v0.3.0").is_ok());
+        assert!(ensure_allowed_url("https://github.com/hulk-pham/Dev-Doctor/releases/tag/v0.3.0/../../other").is_err());
     }
 
     #[test]

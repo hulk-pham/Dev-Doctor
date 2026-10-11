@@ -14,6 +14,18 @@ export function processHasPort(process: { tcpPorts: number[] }, port: number): b
   return process.tcpPorts.includes(port);
 }
 
+export function processMatchesQuery(
+  process: { name: string; command: string; tcpPorts: number[] },
+  query: string,
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  if (process.name.toLowerCase().includes(needle) || process.command.toLowerCase().includes(needle)) return true;
+  const digits = needle.replace(/^:/, "");
+  if (!/^\d+$/.test(digits)) return false;
+  return process.tcpPorts.some((port) => String(port).includes(digits));
+}
+
 /** Default Processes view: development tools only (see Rust `DEV_NAMES`). */
 export function filterProcessesForView<T extends { development: boolean }>(rows: T[], showAllProcesses: boolean): T[] {
   if (showAllProcesses) return rows;

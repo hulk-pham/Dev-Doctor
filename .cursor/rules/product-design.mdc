@@ -44,3 +44,4 @@ Ask one question when: two valid IA choices, unspecified safety tradeoff, or ux-
 # Notes
 
 - 2026-10-10: Authoritative product docs under `docs/product/` — read ux-review before re-deriving IA from git.
+- 2026-10-11: Processes search is the name/port lookup. Diagnostics Find in Processes fills that field.

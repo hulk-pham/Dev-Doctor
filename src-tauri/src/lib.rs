@@ -1,16 +1,19 @@
 mod artifacts;
 mod chrome;
 mod history;
+mod layout;
+mod menus;
 mod probe;
 mod processes;
 mod security;
 mod snapshot;
+mod updater;
 
 use history::{data_dir, load, load_cleanups, save, save_cleanups};
 use probe::{execute_install, inspect_listen_port, FixExecutionResult, PortInspection};
 use security::ensure_allowed_url;
 use serde::Serialize;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use snapshot::{collect_project_snapshot, ProjectSnapshot};
 use tauri_plugin_opener::OpenerExt;
 
@@ -101,6 +104,18 @@ fn window_chrome(window: tauri::WebviewWindow) -> Result<chrome::WindowChrome, S
 }
 
 #[tauri::command]
+fn classify_folder(project_path: String) -> Result<layout::FolderLayout, String> {
+    layout::classify_folder(&project_path)
+}
+
+#[tauri::command]
+async fn check_for_update() -> Result<updater::UpdateCheck, String> {
+    tauri::async_runtime::spawn_blocking(updater::check_for_update)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn scan_artifacts(app: tauri::AppHandle, project_path: String) -> Result<artifacts::ArtifactScan, String> {
     tauri::async_runtime::spawn_blocking(move || {
         artifacts::scan_project_artifacts(&project_path, &mut |progress| {
@@ -127,6 +142,13 @@ pub fn run() {
     }
 
     builder
+        .menu(|app| menus::build(app))
+        .on_menu_event(|app, event| menus::dispatch(app, &event.id().0))
+        .setup(|app| {
+            let tray = menus::install_tray(app.handle())?;
+            app.manage(tray);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             collect_snapshot,
             inspect_port,
@@ -141,7 +163,9 @@ pub fn run() {
             terminate_process,
             app_metadata,
             window_chrome,
-            scan_artifacts
+            scan_artifacts,
+            classify_folder,
+            check_for_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

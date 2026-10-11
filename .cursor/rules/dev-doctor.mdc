@@ -55,7 +55,7 @@ Before code (mental or handoff): **user question** (one sentence), **journey row
 - **One view, one question** — no twin entry points (e.g. port lookup on Diagnostics → Processes highlight; **no port search on Processes**).
 - **UI consistency** — **`ui-kit.mdc`** + **`docs/product/ui-kit.md`** + `screen-toolbar.tsx`; scope = `SegmentedFilter`; toolbar actions = icons; section nav = underline tabs only.
 - **Facts on the row** — one toolbar row; at most **one bordered list**; **no native `<select>`**.
-- **Project chrome** — only **`ProjectChromeBar`** in shell (`h-12`); never duplicate selector in a page.
+- **Project chrome** — only **`ProjectChromeBar`** in shell (`h-12`), on every view even with no folder selected; never duplicate selector in a page.
 - **Pause** auto-refresh lists when the user reads rows. Ask **one** focused question on IA forks — not on what `ui-chrome.mdc` already fixes.
 
 Product checklist (journeys, affordances): **`product-design.mdc`**.

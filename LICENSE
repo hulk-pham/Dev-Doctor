@@ -1,4 +1,53 @@
+Dev Doctor
+Copyright (c) 2026 Hung Pham
+
+This file has two parts. The first part is a plain-language notice about what
+you are getting and how to check it. The second part is the MIT License, which
+is the legal grant. If the two seem to disagree, the MIT License controls the
+rights you receive. The notice does not add restrictions on use, copying, or
+distribution.
+
+--------------------------------------------------------------------------------
+Plain-language notice
+--------------------------------------------------------------------------------
+
+Dev Doctor is a local macOS application for a developer folder you choose. It
+can read that folder, list processes on the machine, and show findings. It can
+delete a generated or reproducible directory, or run an allowlisted install,
+only after you confirm in the app.
+
+The disk image published on GitHub Releases is not signed with an Apple
+Developer ID and is not notarized. Apple has not reviewed it. macOS will warn
+you on first launch. That warning is expected for this build. It is not, by
+itself, evidence that the app is safe or unsafe. The check available to you is
+the source code in this repository.
+
+Please read the source before you rely on a downloaded binary. The short files
+that define what the app is allowed to do are:
+
+  src-tauri/src/security.rs     folders and URLs that are allowed
+  src-tauri/src/probe.rs        commands that may run
+  src-tauri/src/snapshot.rs     what is collected; environment values are dropped
+  src-tauri/src/processes.rs    which processes may be stopped
+  src-tauri/src/artifacts.rs    which directories may be deleted
+
+The window cannot pass an arbitrary shell command. Confirmed installs are
+limited to "npm install --ignore-scripts" and "pnpm install --ignore-scripts"
+inside a user or temporary directory. There is no account and no telemetry.
+Check for Updates requests the latest GitHub release only. It does not send
+the project path or file contents.
+
+You may build the application yourself. Instructions are in CONTRIBUTING.md.
+A binary you compile from a commit you have read is the copy you can verify.
+
+The software is provided as is, without warranty. The authors are not liable
+for lost work, a deleted folder, a stopped process, or a Gatekeeper warning.
+Confirm cleanup and process termination yourself. Keep your own copies of
+anything you cannot regenerate.
+
+--------------------------------------------------------------------------------
 MIT License
+--------------------------------------------------------------------------------
 
 Copyright (c) 2026 Hung Pham
 

@@ -4,16 +4,8 @@ import { useAppState } from "../../state/AppState";
 import { Button } from "../ui/button";
 import { ProjectSelector } from "./ProjectSelector";
 
-function showProjectChrome(view: string, projectPath: string | null): boolean {
-  if (view === "workspace") return true;
-  if (view === "settings") return false;
-  return Boolean(projectPath);
-}
-
 export function ProjectChromeBar() {
   const state = useAppState();
-  if (!showProjectChrome(state.view, state.projectPath)) return null;
-
   const onWorkspace = state.view === "workspace";
 
   return (

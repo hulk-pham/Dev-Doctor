@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RefreshCw } from "lucide-react";
 import { Button } from "../components/ui/button";
-import { FilterChip } from "../components/ui/filter-chip";
 import { ScreenToolbar, ToolbarEnd, ToolbarGroup, ToolbarIconButton, ToolbarStatus } from "../components/ui/screen-toolbar";
 import { SegmentedFilter } from "../components/ui/segmented-filter";
-import { formatTcpPorts, processHasPort, projectForProcess } from "../diagnostics/processes";
+import { Switch } from "../components/ui/switch";
+import { formatTcpPorts, processHasPort, processMatchesQuery, projectForProcess } from "../diagnostics/processes";
 import { validatePort } from "../diagnostics/ports";
 import { errorMessage, formatBytes } from "../lib/utils";
 import { listProcesses, terminateProcess, type ProcessInfo } from "../services/tauri";
@@ -25,6 +25,7 @@ export function ProcessesPage() {
   const [monitoring, setMonitoring] = useState(true);
   const [showAllProcesses, setShowAllProcesses] = useState(false);
   const [thisProjectOnly, setThisProjectOnly] = useState(false);
+  const [query, setQuery] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const pendingFindPort = useRef<string | null>(null);
   const projects = useMemo(() => {
@@ -62,7 +63,7 @@ export function ProcessesPage() {
   useEffect(() => {
     if (!state.desktop) return;
     void refresh(true);
-  }, [state.desktop, refresh]);
+  }, [state.desktop, refresh, state.processesNonce]);
 
   useEffect(() => {
     if (!state.desktop || !monitoring) return;
@@ -82,6 +83,7 @@ export function ProcessesPage() {
     if (!pendingFindPort.current || loading) return;
     const port = pendingFindPort.current;
     pendingFindPort.current = null;
+    setQuery(port);
     void findPort(port);
   }, [loading, rows]);
 
@@ -140,6 +142,10 @@ export function ProcessesPage() {
     if (thisProjectOnly && state.projectPath) {
       list = list.filter(({ project }) => project != null);
     }
+    const needle = query.trim();
+    if (needle) {
+      list = list.filter(({ row }) => processMatchesQuery(row, needle));
+    }
     return list.sort((left, right) => {
       const leftScore = Number(Boolean(right.project)) - Number(Boolean(left.project));
       if (leftScore !== 0) return leftScore;
@@ -147,7 +153,7 @@ export function ProcessesPage() {
       if (portScore !== 0) return portScore;
       return right.row.cpuPercent - left.row.cpuPercent;
     });
-  }, [rows, projects, thisProjectOnly, state.projectPath]);
+  }, [rows, projects, thisProjectOnly, state.projectPath, query]);
 
   const selected = selectedPid != null ? rows.find((row) => row.pid === selectedPid) ?? null : null;
 
@@ -164,21 +170,31 @@ export function ProcessesPage() {
             ]}
             onChange={(id) => setShowAllProcesses(id === "all")}
           />
-          {state.projectPath ? (
-            <FilterChip active={thisProjectOnly} label="This project" onClick={() => setThisProjectOnly((on) => !on)} />
-          ) : null}
+          <Switch
+            checked={Boolean(state.projectPath) && thisProjectOnly}
+            disabled={!state.projectPath}
+            label="This project"
+            onChange={setThisProjectOnly}
+          />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name or port"
+            aria-label="Search by process name or port"
+            className="h-8 w-40 rounded-lg border border-border bg-panel-2 px-2 text-[13px]"
+          />
         </ToolbarGroup>
         <ToolbarEnd>
+          <ToolbarStatus>
+            {!monitoring ? "Paused · " : ""}
+            {updatedAt ? updatedAt.toLocaleTimeString() : ""}
+          </ToolbarStatus>
           <ToolbarIconButton
             icon={monitoring ? Pause : Play}
             label={monitoring ? "Pause auto-refresh" : "Resume auto-refresh"}
             onClick={() => setMonitoring((on) => !on)}
           />
           <ToolbarIconButton icon={RefreshCw} label="Refresh process list" disabled={loading} onClick={() => void refresh()} />
-          <ToolbarStatus>
-            {!monitoring ? "Paused · " : ""}
-            {updatedAt ? updatedAt.toLocaleTimeString() : ""}
-          </ToolbarStatus>
         </ToolbarEnd>
       </ScreenToolbar>
       {highlightPort != null ? (
@@ -200,7 +216,11 @@ export function ProcessesPage() {
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       {sortedRows.length === 0 ? (
         <p className="text-[11px] text-muted">
-          {thisProjectOnly ? "No processes matched this project." : "No processes match this scope."}
+          {query.trim()
+            ? "No processes match this search."
+            : thisProjectOnly
+              ? "No processes matched this project."
+              : "No processes match this scope."}
           {!showAllProcesses ? (
             <>
               {" "}

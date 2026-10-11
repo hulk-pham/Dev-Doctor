@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in Dev Doctor did not behave as you expected.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste `.env` values, tokens, or private file contents. A folder name and the Dev Doctor version are enough.
+  - type: input
+    id: version
+    attributes:
+      label: Dev Doctor version
+      description: Settings shows the version. The current release is 0.2.0.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "15.5"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: Which screen, which folder kind (Node, Rust, or a parent of several projects), and what you clicked.
+    validations:
+      required: true

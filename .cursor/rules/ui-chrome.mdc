@@ -14,7 +14,7 @@ Form controls must use app tokens (`Button`, `FilterChip`, styled `input`). **Do
 
 Vertical rhythm: **`src/lib/ui-layout.ts`** + spacing table in `design-principles.md`. Workspace tab panels use `pt-3` + `space-y-3`; banners use `insetBar`; sticky footers use `stickyFooter` without `-mx-*`.
 
-**Project chrome:** only `ProjectChromeBar` in AppShell (`h-12`, `projectChromeRow`). Never add a second project header in page content — that causes nav jump between Workspace and Processes.
+**Project chrome:** only `ProjectChromeBar` in AppShell (`h-12`, `projectChromeRow`). It stays on every view, including Settings and when no folder is selected. Never add a second project header in page content — that causes nav jump between Workspace and Processes.
 
 Layout, top to bottom:
 
@@ -39,3 +39,4 @@ Product name shown to macOS is `Dev Doctor` (`productName` and `NSProcessInfo.se
 - 2026-10-10: Inspector toggle on title row, 12px from right; same size/`y` as menu toggle; panel has no close button.
 - 2026-10-10: No status bar; Settings last in nav; version only on Settings page.
 - 2026-10-11: Agent rules consolidated — `dev-doctor.mdc` + `AGENTS.md` index; product/process IA in `design-principles.md`.
+- 2026-10-11: Project row is visible on every screen even with no folder selected.

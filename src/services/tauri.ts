@@ -76,6 +76,37 @@ export function appMetadata(): Promise<AppMetadata> {
   return invoke("app_metadata");
 }
 
+export interface ChildProject {
+  name: string;
+  path: string;
+  ecosystem: string;
+}
+
+export interface FolderLayout {
+  kind: "source" | "nested" | "boundary" | "not-source";
+  canonicalPath: string;
+  ecosystem: string | null;
+  projects: ChildProject[];
+  truncated: boolean;
+}
+
+export function classifyFolder(projectPath: string): Promise<FolderLayout> {
+  return invoke("classify_folder", { projectPath });
+}
+
+export interface UpdateCheck {
+  status: "available" | "current" | "none" | "unavailable";
+  currentVersion: string;
+  latestVersion: string | null;
+  url: string | null;
+  notes: string | null;
+  message: string;
+}
+
+export function checkForUpdate(): Promise<UpdateCheck> {
+  return invoke("check_for_update");
+}
+
 export interface ChromeButton {
   name: string;
   x: number;

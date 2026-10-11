@@ -9,8 +9,8 @@ One flat row — class **`filterToolbar`** (`gap-1.5`, no gray panel, not `inset
 | Zone | Content | Component |
 | --- | --- | --- |
 | **Left** | Scope / severity (2–4 mutually exclusive options) | **`SegmentedFilter`** (`Button` sm default vs secondary) |
-| **Left+** | Optional boolean filter (e.g. This project) | **`FilterChip`** — not the same shape as scope |
-| **Right** (`ToolbarEnd`) | Icon actions, menus, status time | **`ToolbarIconButton`**, **`FilterMenu`**, muted `text-[11px]` |
+| **Left+** | On/off filter (This project) and a name/port search | **`Switch`**, text field |
+| **Right** (`ToolbarEnd`) | Status time, then icon actions and menus | muted `text-[11px]`, **`ToolbarIconButton`**, **`FilterMenu`** |
 
 **Do not** put Pause / Refresh / Copy as text `Button` sm next to scope — they read as tabs. Use **`ToolbarIconButton`** with `title` + `aria-label`.
 
@@ -23,7 +23,7 @@ One flat row — class **`filterToolbar`** (`gap-1.5`, no gray panel, not `inset
 | Pattern | Looks like | Example |
 | --- | --- | --- |
 | Scope / severity | Segmented `Button` sm pair/group | Dev · All; All · Errors · … |
-| Optional filter | `FilterChip` | This project |
+| On/off filter | `Switch` | This project |
 | Toolbar action | `ToolbarIconButton` | Pause, Refresh |
 | Primary nav | Underline tab | Overview · Cleanup · Diagnostics |
 | Destructive / row action | `Button` sm + label OK | Run fix, Stop |

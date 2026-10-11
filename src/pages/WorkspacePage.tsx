@@ -3,6 +3,7 @@ import { WorkspaceSegments } from "../components/layout/WorkspaceSegments";
 import { CleanupPage } from "./CleanupPage";
 import { DiagnosticsPage } from "./DiagnosticsPage";
 import { Button } from "../components/ui/button";
+import { ecosystemLabel } from "../diagnostics/engine";
 import { workspaceNextStep } from "../domain/workspace-next-step";
 import { insetBar, stack, summaryTile } from "../lib/ui-layout";
 import { basename, cn, formatBytes } from "../lib/utils";
@@ -32,7 +33,9 @@ export function WorkspacePage() {
         ) : null}
 
         {!state.scanning && state.workspaceTab === "dashboard" ? (
-          hasResult || state.projectPath ? (
+          state.boundary ? (
+            <BoundaryNotice />
+          ) : hasResult || state.projectPath ? (
             <Dashboard />
           ) : (
             <div className="rounded-lg border border-dashed border-border px-5 py-10 text-center">
@@ -79,6 +82,9 @@ function Dashboard() {
 
   return (
     <div className={stack}>
+      {state.openedInside ? (
+        <p className="text-[11px] text-muted">Opened {state.openedInside}, the project inside the folder you chose.</p>
+      ) : null}
       <div className={insetBar}>
         <p className="text-[13px] text-muted">{next.message}</p>
         <Button size="sm" variant="secondary" className="shrink-0" onClick={runNextStep}>
@@ -171,6 +177,39 @@ export function ProjectInspector() {
       <Button size="sm" variant="secondary" className="w-full" onClick={() => state.setView("projects")}>
         All scans in Projects
       </Button>
+    </div>
+  );
+}
+
+function BoundaryNotice() {
+  const state = useAppState();
+  const layout = state.boundary;
+  if (!layout) return null;
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[13px] font-medium">This folder contains several projects</p>
+        <p className="mt-1 text-[11px] text-muted">
+          Dev Doctor will not scan it as one project, and it will not run npm checks on the parent. Open one project below.
+        </p>
+        {layout.truncated ? (
+          <p className="mt-1 text-[11px] text-muted">The list stopped early because the folder is large.</p>
+        ) : null}
+      </div>
+      <ul className="overflow-hidden rounded-lg border border-border">
+        {layout.projects.map((project) => (
+          <li key={project.path} className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px]">{project.name}</span>
+              <span className="block truncate font-mono text-[11px] text-muted">{project.path}</span>
+            </span>
+            <span className="shrink-0 text-[11px] text-muted">{ecosystemLabel(project.ecosystem)}</span>
+            <Button size="sm" variant="secondary" onClick={() => void state.scanFolder(project.path)}>
+              Open
+            </Button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

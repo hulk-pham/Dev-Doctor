@@ -12,7 +12,7 @@ export function ToolbarGroup({ children, className }: { children: ReactNode; cla
   return <div className={cn("flex flex-wrap items-center gap-1.5", className)}>{children}</div>;
 }
 
-/** Right cluster: icon actions, FilterMenu, timestamp. */
+/** Right cluster: status time, then icon actions. */
 export function ToolbarEnd({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("ml-auto flex shrink-0 flex-wrap items-center gap-1.5", className)}>{children}</div>;
 }

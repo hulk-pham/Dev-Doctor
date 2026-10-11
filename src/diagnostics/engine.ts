@@ -830,7 +830,66 @@ function gitFindings(snapshot: ProjectSnapshot): DiagnosticFinding[] {
   ];
 }
 
+const ECOSYSTEM_LABELS: Record<string, string> = {
+  node: "Node.js",
+  rust: "Rust",
+  python: "Python",
+  go: "Go",
+  ruby: "Ruby",
+  php: "PHP",
+  jvm: "JVM",
+  swift: "Swift",
+  mixed: "Mixed",
+};
+
+export function ecosystemLabel(id: string | null): string {
+  if (!id) return "Unknown";
+  return ECOSYSTEM_LABELS[id] ?? id;
+}
+
+function nodeChecksApply(snapshot: ProjectSnapshot): boolean {
+  if (snapshot.packageJson.present || snapshot.lockfiles.length > 0) return true;
+  return snapshot.ecosystem === "node";
+}
+
+function notSourceFinding(snapshot: ProjectSnapshot): DiagnosticFinding {
+  return createFinding({
+    id: "not-a-source-project",
+    category: "runtime",
+    severity: "info",
+    status: "unknown",
+    title: "This folder is not a source project",
+    explanation:
+      "Dev Doctor did not find a project manifest here, so it skipped Node.js and npm checks. A folder that only contains other projects cannot be scanned as one project.",
+    evidence: [`Folder: ${snapshot.folderName}`, "No package.json, Cargo.toml, go.mod, or similar manifest at this folder."],
+    recommendedAction: "Open the folder that contains the project's manifest.",
+  });
+}
+
+function otherEcosystemFinding(snapshot: ProjectSnapshot): DiagnosticFinding {
+  const label = ecosystemLabel(snapshot.ecosystem);
+  return createFinding({
+    id: "ecosystem-not-node",
+    category: "runtime",
+    severity: "info",
+    status: "pass",
+    title: `${label} project`,
+    explanation: `This folder is a ${label} project. Node.js, npm, and package.json checks were skipped.`,
+    evidence: [`Detected: ${label}`, `Folder: ${snapshot.folderName}`],
+    recommendedAction: "Open a Node.js project when you want dependency and engines checks.",
+  });
+}
+
 export function runDiagnostics(snapshot: ProjectSnapshot): DiagnosticFinding[] {
+  if (!nodeChecksApply(snapshot) && !snapshot.ecosystem) {
+    return collectRuleFindings([
+      () => [notSourceFinding(snapshot)],
+      () => (snapshot.git.isRepo ? gitFindings(snapshot) : []),
+    ]);
+  }
+  if (!nodeChecksApply(snapshot)) {
+    return collectRuleFindings([() => [otherEcosystemFinding(snapshot)], () => gitFindings(snapshot)]);
+  }
   return collectRuleFindings([
     () => nodeFindings(snapshot),
     () => toolFindings(snapshot),
@@ -844,10 +903,14 @@ export function runDiagnostics(snapshot: ProjectSnapshot): DiagnosticFinding[] {
 }
 
 export function projectTypeFor(snapshot: ProjectSnapshot): string {
-  const pkg = snapshot.packageJson;
-  if (!pkg.present) return "Unknown";
-  if (pkg.readError || pkg.parseError) return "Node.js (unreadable package.json)";
-  return "Node.js";
+  if (nodeChecksApply(snapshot)) {
+    const pkg = snapshot.packageJson;
+    if (!pkg.present) return "Node.js";
+    if (pkg.readError || pkg.parseError) return "Node.js (unreadable package.json)";
+    return "Node.js";
+  }
+  if (!snapshot.ecosystem) return "Not a source project";
+  return ecosystemLabel(snapshot.ecosystem);
 }
 
 export function projectMeta(snapshot: ProjectSnapshot, findings: DiagnosticFinding[]): ProjectMeta {
@@ -944,6 +1007,7 @@ export function emptySnapshot(overrides: Partial<ProjectSnapshot> = {}): Project
     npm: { available: true, version: "10.2.4", error: null },
     pnpm: { available: false, version: null, error: "pnpm was not found on PATH." },
     isSample: false,
+    ecosystem: "node",
   };
   return {
     ...base,

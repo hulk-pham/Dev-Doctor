@@ -21,3 +21,5 @@ Rust tests must keep using `fixtures/sample-node-app/.env` to prove the secret s
 A new or changed rule gets a Vitest test next to it, or a `cargo test` next to the Rust parser. Run those tests before calling the change done.
 
 # Notes
+
+- 2026-10-11: A folder with no manifest is not an npm project. A folder that contains several projects is a boundary and is not scanned as one project; a single nested project is opened instead.
