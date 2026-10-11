@@ -18,6 +18,8 @@ const DENIED_PREFIXES: &[&str] = &[
     "/var/root",
 ];
 
+pub const ALLOWED_AI_HOSTS: &[&str] = &["https://api.openai.com"];
+
 pub const ALLOWED_URLS: &[&str] = &[
     "https://nodejs.org/en/download",
     "https://nodejs.org/api/packages.html#engines",
@@ -75,6 +77,14 @@ pub fn validate_fix_path(input: &str) -> Result<PathBuf, String> {
         return Err("Install commands can only run inside a user or temporary folder.".into());
     }
     Ok(path)
+}
+
+pub fn ensure_allowed_ai_host(url: &str) -> Result<(), String> {
+    if ALLOWED_AI_HOSTS.iter().any(|prefix| url.starts_with(prefix)) {
+        Ok(())
+    } else {
+        Err("That AI provider host is not allowlisted.".into())
+    }
 }
 
 pub fn ensure_allowed_url(url: &str) -> Result<(), String> {

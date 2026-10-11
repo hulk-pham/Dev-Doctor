@@ -62,6 +62,7 @@ Background sampling (optional, off by default) watches CPU, memory pressure, dis
 - **Measured, not guessed** — Sizes and ports come from the OS. Copy does not imply continuous monitoring or a complete process list.
 - **Confirm before change** — Deletes, process stops, and package installs run only after an in-app confirm. Installs are limited to `npm install --ignore-scripts` or `pnpm install --ignore-scripts`.
 - **Updates** — **Check for Updates** asks GitHub for the latest release tag and notes. It does not upload project paths or file contents.
+- **Optional AI (BYOK)** — Your OpenAI key stays in Keychain. Only `api.openai.com` is allowlisted, and only after you review the context preview.
 
 History paths are shown on **Settings**. You can clear monitoring history there when you want a fresh start.
 

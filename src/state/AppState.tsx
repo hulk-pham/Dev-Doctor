@@ -15,6 +15,7 @@ import {
 import { prependHistory, scanFromHistory, toHistoryEntry } from "../domain/history";
 import type {
   CleanupHistoryEntry,
+  DiagnosticFinding,
   FixExecutionResult,
   FixSuggestion,
   MonitorSample,
@@ -28,6 +29,14 @@ import type {
   ScanHistoryEntry,
   ScanResult,
 } from "../domain/types";
+import {
+  buildAlertContextItems,
+  buildArtifactContextItems,
+  buildFindingContextItems,
+  buildProcessContextItems,
+  composeContextText,
+} from "../ai/context-builder";
+import type { AiContextItem, DiagnosisSession } from "../ai/types";
 import { classifyArtifacts, type ArtifactFinding } from "../diagnostics/artifacts";
 import { buildScanResult } from "../diagnostics/engine";
 import { validateFixRequest, validateProjectPath } from "../diagnostics/paths";
@@ -49,6 +58,13 @@ import {
   monitorAlertsQuery,
   monitorClearHistory,
   monitorStorageStatus as fetchMonitorStorageStatus,
+  aiSettingsLoad,
+  aiSettingsSave,
+  aiKeyStatus as fetchAiKeyStatus,
+  aiKeySave,
+  aiKeyDelete,
+  aiTestConnection,
+  aiDiagnose,
   monitorSettingsLoad,
   monitorSettingsSave,
   monitorStart,
@@ -58,6 +74,7 @@ import {
   saveCleanupHistory,
   saveHistory,
   scanArtifacts,
+  terminateProcess,
   type ArtifactScanProgress,
   type FolderLayout,
   type UpdateCheck,
@@ -144,6 +161,33 @@ interface AppStateValue {
   clearMonitorHistory: () => Promise<void>;
   dismissMonitorAlert: (alertId: string) => Promise<void>;
   muteMonitorRule: (ruleId: string) => Promise<void>;
+  aiSettings: import("../ai/types").AiSettings | null;
+  aiKeyStatus: import("../ai/types").AiKeyStatus | null;
+  saveAiSettings: (settings: import("../ai/types").AiSettings) => Promise<void>;
+  saveAiKey: (apiKey: string) => Promise<void>;
+  deleteAiKey: () => Promise<void>;
+  testAiConnection: () => Promise<void>;
+  runAiDiagnosis: (contextText: string) => Promise<import("../ai/types").AiDiagnosisResponse>;
+  aiExplainAvailable: boolean;
+  diagnosisSession: DiagnosisSession | null;
+  openDiagnosisFromAlert: (alert: MonitorAlert) => void;
+  openDiagnosisFromFinding: (finding: DiagnosticFinding) => void;
+  openDiagnosisFromArtifact: (item: ArtifactFinding) => void;
+  openDiagnosisFromProcess: (input: {
+    pid: number;
+    name: string;
+    command?: string;
+    cwd?: string | null;
+    cpuPercent?: number;
+    memoryBytes?: number;
+    tcpPorts?: number[];
+    matchedProjectPath?: string | null;
+  }) => void;
+  closeDiagnosis: () => void;
+  updateDiagnosisItems: (items: AiContextItem[]) => void;
+  sendDiagnosis: () => Promise<void>;
+  recheckDiagnosis: () => Promise<void>;
+  stopProcessForDiagnosis: (pid: number) => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -198,6 +242,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [monitorAlerts, setMonitorAlerts] = useState<MonitorAlert[]>([]);
   const [monitorStorageStatus, setMonitorStorageStatus] = useState<MonitorStorageStatus | null>(null);
   const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<import("../ai/types").AiSettings | null>(null);
+  const [aiKeyStatus, setAiKeyStatus] = useState<import("../ai/types").AiKeyStatus | null>(null);
+  const [diagnosisSession, setDiagnosisSession] = useState<DiagnosisSession | null>(null);
   const desktop = isTauri();
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -305,6 +352,254 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await refreshMonitorStorageStatus();
     showToast("Monitoring history cleared");
   }, [desktop, refreshMonitorStatus, refreshMonitorStorageStatus, showToast]);
+
+  const refreshAiKeyStatus = useCallback(async () => {
+    if (!desktop) return;
+    try {
+      setAiKeyStatus(await fetchAiKeyStatus());
+    } catch {
+      setAiKeyStatus(null);
+    }
+  }, [desktop]);
+
+  const saveAiSettings = useCallback(
+    async (next: import("../ai/types").AiSettings) => {
+      if (!desktop) return;
+      const saved = await aiSettingsSave(next);
+      setAiSettings(saved);
+    },
+    [desktop],
+  );
+
+  const saveAiKey = useCallback(
+    async (apiKey: string) => {
+      if (!desktop) return;
+      setAiKeyStatus(await aiKeySave(apiKey));
+      showToast("API key saved to Keychain");
+    },
+    [desktop, showToast],
+  );
+
+  const deleteAiKey = useCallback(async () => {
+    if (!desktop) return;
+    setAiKeyStatus(await aiKeyDelete());
+    showToast("API key removed");
+  }, [desktop, showToast]);
+
+  const testAiConnection = useCallback(async () => {
+    if (!desktop) return;
+    try {
+      await aiTestConnection();
+      showToast("AI connection OK");
+    } catch (cause) {
+      showToast(errorMessage(cause));
+      throw cause;
+    }
+  }, [desktop, showToast]);
+
+  const runAiDiagnosis = useCallback(
+    async (contextText: string) => {
+      if (!desktop) throw new Error("AI diagnosis runs in the desktop app.");
+      const response = await aiDiagnose(contextText);
+      return response;
+    },
+    [desktop],
+  );
+
+  const aiExplainAvailable = Boolean(aiKeyStatus?.configured);
+
+  const beginDiagnosis = useCallback((session: Omit<DiagnosisSession, "result" | "error" | "sending" | "baselineContext" | "afterContext" | "rechecking">) => {
+    setDiagnosisSession({
+      ...session,
+      result: null,
+      error: null,
+      sending: false,
+      baselineContext: null,
+      afterContext: null,
+      rechecking: false,
+    });
+    setInspectorOpen(true);
+  }, []);
+
+  const openDiagnosisFromAlert = useCallback(
+    (alert: MonitorAlert) => {
+      beginDiagnosis({
+        sourceKind: "alert",
+        sourceId: alert.id,
+        sourceLabel: alert.title,
+        items: buildAlertContextItems({
+          alert,
+          latestSample: monitorLatest,
+          projectPath,
+        }),
+        anchors: { projectPath, artifacts: artifactFindings },
+      });
+    },
+    [artifactFindings, beginDiagnosis, monitorLatest, projectPath],
+  );
+
+  const openDiagnosisFromFinding = useCallback(
+    (finding: DiagnosticFinding) => {
+      beginDiagnosis({
+        sourceKind: "finding",
+        sourceId: finding.id,
+        sourceLabel: finding.title,
+        items: buildFindingContextItems(finding, projectPath),
+        anchors: { projectPath, finding, artifacts: artifactFindings },
+      });
+    },
+    [artifactFindings, beginDiagnosis, projectPath],
+  );
+
+  const openDiagnosisFromArtifact = useCallback(
+    (item: ArtifactFinding) => {
+      beginDiagnosis({
+        sourceKind: "artifact",
+        sourceId: item.relativePath,
+        sourceLabel: item.relativePath,
+        items: buildArtifactContextItems(item, projectPath),
+        anchors: { projectPath, artifact: item, artifacts: artifactFindings },
+      });
+    },
+    [artifactFindings, beginDiagnosis, projectPath],
+  );
+
+  const openDiagnosisFromProcess = useCallback(
+    (input: {
+      pid: number;
+      name: string;
+      command?: string;
+      cwd?: string | null;
+      cpuPercent?: number;
+      memoryBytes?: number;
+      tcpPorts?: number[];
+      matchedProjectPath?: string | null;
+    }) => {
+      beginDiagnosis({
+        sourceKind: "process",
+        sourceId: String(input.pid),
+        sourceLabel: `${input.name} (PID ${input.pid})`,
+        items: buildProcessContextItems({ ...input, projectPath }),
+        anchors: {
+          projectPath,
+          process: {
+            pid: input.pid,
+            name: input.name,
+            command: input.command,
+            ports: input.tcpPorts,
+          },
+        },
+      });
+    },
+    [beginDiagnosis, projectPath],
+  );
+
+  const closeDiagnosis = useCallback(() => {
+    setDiagnosisSession(null);
+  }, []);
+
+  const updateDiagnosisItems = useCallback((items: AiContextItem[]) => {
+    setDiagnosisSession((current) => (current ? { ...current, items } : current));
+  }, []);
+
+  const sendDiagnosis = useCallback(async () => {
+    if (!diagnosisSession || !desktop) return;
+    const text = composeContextText(diagnosisSession.items);
+    setDiagnosisSession((current) =>
+      current ? { ...current, sending: true, error: null } : current,
+    );
+    try {
+      const result = await aiDiagnose(text);
+      setDiagnosisSession((current) =>
+        current
+          ? {
+              ...current,
+              sending: false,
+              result,
+              baselineContext: text,
+              afterContext: null,
+            }
+          : current,
+      );
+    } catch (cause) {
+      const message = errorMessage(cause);
+      const error =
+        typeof cause === "object" && cause && "code" in cause
+          ? (cause as import("../ai/types").AiError)
+          : { code: "providerMessage" as const, message };
+      setDiagnosisSession((current) =>
+        current ? { ...current, sending: false, error } : current,
+      );
+    }
+  }, [desktop, diagnosisSession]);
+
+  const rebuildDiagnosisItems = useCallback(
+    (session: DiagnosisSession): AiContextItem[] => {
+      switch (session.sourceKind) {
+        case "alert": {
+          const alert = monitorAlerts.find((entry) => entry.id === session.sourceId);
+          if (!alert) return session.items;
+          return buildAlertContextItems({ alert, latestSample: monitorLatest, projectPath });
+        }
+        case "finding": {
+          const finding = scan?.findings.find((entry) => entry.id === session.sourceId);
+          if (!finding) return session.items;
+          return buildFindingContextItems(finding, projectPath);
+        }
+        case "artifact": {
+          const item = artifactFindings.find((entry) => entry.relativePath === session.sourceId);
+          if (!item) return session.items;
+          return buildArtifactContextItems(item, projectPath);
+        }
+        case "process": {
+          const pid = Number(session.sourceId);
+          if (!Number.isFinite(pid) || !session.anchors.process) return session.items;
+          return buildProcessContextItems({
+            ...session.anchors.process,
+            pid,
+            projectPath,
+          });
+        }
+        default:
+          return session.items;
+      }
+    },
+    [artifactFindings, monitorAlerts, monitorLatest, projectPath, scan?.findings],
+  );
+
+  const recheckDiagnosis = useCallback(async () => {
+    if (!diagnosisSession) return;
+    setDiagnosisSession((current) => (current ? { ...current, rechecking: true } : current));
+    try {
+      if (desktop) {
+        await refreshMonitorAlerts();
+        setProcessesNonce((value) => value + 1);
+      }
+      setDiagnosisSession((current) => {
+        if (!current) return current;
+        const items = rebuildDiagnosisItems(current);
+        const afterContext = composeContextText(items);
+        return {
+          ...current,
+          items,
+          rechecking: false,
+          afterContext,
+        };
+      });
+    } catch {
+      setDiagnosisSession((current) => (current ? { ...current, rechecking: false } : current));
+    }
+  }, [desktop, diagnosisSession, rebuildDiagnosisItems, refreshMonitorAlerts]);
+
+  const stopProcessForDiagnosis = useCallback(
+    async (pid: number) => {
+      if (!desktop) return;
+      await terminateProcess(pid);
+      showToast(`Sent stop to PID ${pid}`);
+      setProcessesNonce((value) => value + 1);
+    },
+    [desktop, showToast],
+  );
 
   const openMachineTrends = useCallback(() => {
     setView("processes");
@@ -825,10 +1120,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     void refreshMonitorStatus();
     void refreshMonitorAlerts();
     void refreshMonitorStorageStatus();
+    void aiSettingsLoad()
+      .then((settings) => {
+        if (alive) setAiSettings(settings);
+      })
+      .catch(() => {
+        if (alive) setAiSettings(null);
+      });
+    void refreshAiKeyStatus();
     return () => {
       alive = false;
     };
-  }, [desktop, refreshMonitorStatus, refreshMonitorAlerts, refreshMonitorStorageStatus]);
+  }, [desktop, refreshMonitorStatus, refreshMonitorAlerts, refreshMonitorStorageStatus, refreshAiKeyStatus]);
 
   useEffect(() => {
     if (!desktop) return;
@@ -990,6 +1293,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       refreshMonitorAlerts,
       dismissMonitorAlert,
       muteMonitorRule,
+      aiSettings,
+      aiKeyStatus,
+      saveAiSettings,
+      saveAiKey,
+      deleteAiKey,
+      testAiConnection,
+      runAiDiagnosis,
+      aiExplainAvailable,
+      diagnosisSession,
+      openDiagnosisFromAlert,
+      openDiagnosisFromFinding,
+      openDiagnosisFromArtifact,
+      openDiagnosisFromProcess,
+      closeDiagnosis,
+      updateDiagnosisItems,
+      sendDiagnosis,
+      recheckDiagnosis,
+      stopProcessForDiagnosis,
     }),
     [
       view,
@@ -1065,6 +1386,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       monitorStorageStatus,
       refreshMonitorStorageStatus,
       clearMonitorHistory,
+      aiSettings,
+      aiKeyStatus,
+      saveAiSettings,
+      saveAiKey,
+      deleteAiKey,
+      testAiConnection,
+      runAiDiagnosis,
+      aiExplainAvailable,
+      diagnosisSession,
+      openDiagnosisFromAlert,
+      openDiagnosisFromFinding,
+      openDiagnosisFromArtifact,
+      openDiagnosisFromProcess,
+      closeDiagnosis,
+      updateDiagnosisItems,
+      sendDiagnosis,
+      recheckDiagnosis,
+      stopProcessForDiagnosis,
     ],
   );
 

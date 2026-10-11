@@ -120,7 +120,12 @@ export function DiagnosticsPage() {
           {group.findings.length > 0 ? (
             <ul className="overflow-hidden rounded-lg border border-border">
               {group.findings.map((finding) => (
-                <CompactFindingRow key={finding.id} finding={finding} onExecute={startFix} />
+                <CompactFindingRow
+                  key={finding.id}
+                  finding={finding}
+                  onExecute={startFix}
+                  onExplain={state.aiExplainAvailable ? (entry) => state.openDiagnosisFromFinding(entry) : undefined}
+                />
               ))}
             </ul>
           ) : group.id === "ports" ? (

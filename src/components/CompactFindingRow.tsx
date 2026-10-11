@@ -12,9 +12,11 @@ import { cn } from "../lib/utils";
 export function CompactFindingRow({
   finding,
   onExecute,
+  onExplain,
 }: {
   finding: DiagnosticFinding;
   onExecute: (finding: DiagnosticFinding) => void;
+  onExplain?: (finding: DiagnosticFinding) => void;
 }) {
   const { copyText, openDocs } = useAppState();
   const [open, setOpen] = useState(finding.severity === "error");
@@ -43,6 +45,11 @@ export function CompactFindingRow({
             {finding.recommendedAction}
           </p>
           <div className="flex flex-wrap gap-1.5">
+            {onExplain ? (
+              <Button size="sm" variant="secondary" onClick={() => onExplain(finding)}>
+                Explain with AI
+              </Button>
+            ) : null}
             <Button size="sm" variant="secondary" onClick={() => void copyText(formatFinding(finding), "Copied details")}>
               <Copy size={12} />
               Copy

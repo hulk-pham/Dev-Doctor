@@ -52,7 +52,6 @@ export function ProcessesPage() {
   const [alertRuleFilter, setAlertRuleFilter] = useState<string>("all");
   const [samples, setSamples] = useState<MonitorSample[]>([]);
   const [trendsLoading, setTrendsLoading] = useState(false);
-
   const alertQuery = useMemo((): AlertHistoryQuery | undefined => {
     if (alertScope === "active") return { state: "active" };
     const query: AlertHistoryQuery = {};
@@ -444,6 +443,21 @@ export function ProcessesPage() {
             onStop={() => selected && void stop(selected)}
             onShowAll={() => setShowAllProcesses(true)}
             onOpenProject={(path) => state.openProjectInWorkspace(path)}
+            onExplain={
+              state.aiExplainAvailable
+                ? (row, project) =>
+                    state.openDiagnosisFromProcess({
+                      pid: row.pid,
+                      name: row.name,
+                      command: row.command,
+                      cwd: row.cwd,
+                      cpuPercent: row.cpuPercent,
+                      memoryBytes: row.memoryBytes,
+                      tcpPorts: row.tcpPorts,
+                      matchedProjectPath: project?.path ?? null,
+                    })
+                : undefined
+            }
           />
         ) : null}
 
@@ -461,6 +475,12 @@ export function ProcessesPage() {
           </>
         ) : null}
 
+        {tab === "alerts" && !state.aiExplainAvailable ? (
+          <p className="text-[11px] text-muted">
+            Add an API key under Settings → AI &amp; Privacy to enable Explain with AI on alerts.
+          </p>
+        ) : null}
+
         {tab === "alerts" ? (
           <AlertsList
             alerts={state.monitorAlerts}
@@ -470,6 +490,7 @@ export function ProcessesPage() {
             onDismiss={(id) => void state.dismissMonitorAlert(id)}
             onMute={(ruleId) => void state.muteMonitorRule(ruleId)}
             onOpenSettings={() => state.setView("settings")}
+            onExplain={state.aiExplainAvailable ? (alert) => state.openDiagnosisFromAlert(alert) : undefined}
           />
         ) : null}
       </div>
@@ -497,6 +518,7 @@ function ProcessesListBody({
   onStop,
   onShowAll,
   onOpenProject,
+  onExplain,
 }: {
   error: string | null;
   highlightPort: number | null;
@@ -517,6 +539,7 @@ function ProcessesListBody({
   onStop: () => void;
   onShowAll: () => void;
   onOpenProject: (path: string) => void;
+  onExplain?: (row: ProcessInfo, project: { path: string; name: string } | null) => void;
 }) {
   return (
     <>
@@ -584,6 +607,11 @@ function ProcessesListBody({
                     {project ? (
                       <Button size="sm" variant="secondary" onClick={() => onOpenProject(project.path)}>
                         Open in Workspace
+                      </Button>
+                    ) : null}
+                    {onExplain ? (
+                      <Button size="sm" variant="secondary" onClick={() => onExplain(selected, project)}>
+                        Explain with AI
                       </Button>
                     ) : null}
                     {confirming ? (

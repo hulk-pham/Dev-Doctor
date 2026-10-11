@@ -107,6 +107,7 @@ export function AlertsList({
   onDismiss,
   onMute,
   onOpenSettings,
+  onExplain,
 }: {
   alerts: MonitorAlert[];
   scope: AlertScope;
@@ -115,6 +116,7 @@ export function AlertsList({
   onDismiss: (id: string) => void;
   onMute: (ruleId: string) => void;
   onOpenSettings: () => void;
+  onExplain?: (alert: MonitorAlert) => void;
 }) {
   const filtered = scope === "active" ? alerts.filter((alert) => alert.state === "active") : alerts;
 
@@ -139,6 +141,7 @@ export function AlertsList({
           onToggle={() => onFocus(focusedId === alert.id ? null : alert.id)}
           onDismiss={() => onDismiss(alert.id)}
           onMute={() => onMute(alert.ruleId)}
+          onExplain={onExplain ? () => onExplain(alert) : undefined}
         />
       ))}
     </ul>
@@ -151,12 +154,14 @@ function AlertRow({
   onToggle,
   onDismiss,
   onMute,
+  onExplain,
 }: {
   alert: MonitorAlert;
   expanded: boolean;
   onToggle: () => void;
   onDismiss: () => void;
   onMute: () => void;
+  onExplain?: () => void;
 }) {
   const tone = alert.state === "active" ? alertSeverityTone(alert.severity) : "info";
   const badgeTone = alert.state === "active" ? alertSeverityTone(alert.severity) : "neutral";
@@ -178,6 +183,11 @@ function AlertRow({
           </div>
           <p className="text-[11px] text-muted">Updated {formatMonitorWhen(alert.updatedAtMs)}</p>
           <div className="flex flex-wrap gap-1.5">
+            {onExplain ? (
+              <Button size="sm" variant="secondary" onClick={onExplain}>
+                Explain with AI
+              </Button>
+            ) : null}
             {alert.state === "active" ? (
               <>
                 <Button size="sm" variant="secondary" onClick={onDismiss}>

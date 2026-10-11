@@ -8,6 +8,7 @@ import { useAppState, type View } from "../../state/AppState";
 import { ProcessesPage } from "../../pages/ProcessesPage";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { SettingsPage } from "../../pages/SettingsPage";
+import { DiagnosisPanel } from "../ai/DiagnosisPanel";
 import { ProjectInspector, WorkspacePage } from "../../pages/WorkspacePage";
 
 const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
@@ -70,7 +71,15 @@ export function AppShell() {
         </button>
         <button
           type="button"
-          title={state.inspectorOpen ? "Hide project info" : "Show project info"}
+          title={
+            state.inspectorOpen
+              ? state.diagnosisSession
+                ? "Hide diagnosis"
+                : "Hide project info"
+              : state.diagnosisSession
+                ? "Show diagnosis"
+                : "Show project info"
+          }
           aria-pressed={state.inspectorOpen}
           onClick={() => state.setInspectorOpen((open) => !open)}
           style={inspectorToggleStyle}
@@ -123,7 +132,7 @@ export function AppShell() {
         )}
       >
         <div className="h-full overflow-y-auto px-4 py-4">
-          <ProjectInspector />
+          {state.diagnosisSession ? <DiagnosisPanel /> : <ProjectInspector />}
         </div>
       </aside>
       </div>

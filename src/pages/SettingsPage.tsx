@@ -1,6 +1,8 @@
 import { Copy } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { cn } from "../lib/utils";
+import { cn, errorMessage } from "../lib/utils";
 import { useAppState } from "../state/AppState";
 import type { ThemePreference } from "../state/settings";
 
@@ -36,6 +38,9 @@ const THEMES: Array<{ id: ThemePreference; label: string }> = [
 
 export function SettingsPage() {
   const state = useAppState();
+  const [keyDraft, setKeyDraft] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
@@ -175,6 +180,104 @@ export function SettingsPage() {
         </Button>
       </section>
 
+      <section className="min-w-0 rounded-xl border border-border bg-panel p-4">
+        <h2 className="text-sm font-medium">AI &amp; Privacy</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted">
+          OpenAI BYOK. Requests run from Rust; your key stays in Keychain, not in settings or the webview.
+        </p>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted break-words">
+          Host{" "}
+          <span className="font-mono text-text">api.openai.com</span> after you confirm the context preview. Paths and logs are opt-in.
+        </p>
+
+        <div className="mt-4 min-w-0 overflow-hidden rounded-lg border border-border">
+          <label className="block border-b border-border px-3 py-2.5">
+            <span className="text-[11px] uppercase tracking-wide text-muted">Model</span>
+            <input
+              className="mt-1.5 h-8 w-full rounded-lg border border-border bg-panel-2 px-2 font-mono text-[13px]"
+              value={state.aiSettings?.model ?? "gpt-4o-mini"}
+              disabled={!state.desktop}
+              onChange={(event) => {
+                void state.saveAiSettings({
+                  provider: "openai",
+                  model: event.target.value,
+                });
+              }}
+            />
+          </label>
+          <div className="px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-muted">API key</span>
+              <Badge tone={state.aiKeyStatus?.configured ? "pass" : "neutral"}>
+                {state.aiKeyStatus?.configured ? "In Keychain" : "Not set"}
+              </Badge>
+            </div>
+            <input
+              type="password"
+              autoComplete="off"
+              className="mt-1.5 h-8 w-full rounded-lg border border-border bg-panel-2 px-2 font-mono text-[13px]"
+              placeholder={state.aiKeyStatus?.configured ? "Paste to replace" : "sk-…"}
+              value={keyDraft}
+              disabled={!state.desktop || aiBusy}
+              onChange={(event) => setKeyDraft(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 border-t border-border bg-panel-2/40 px-3 py-2.5">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!state.desktop || aiBusy || !keyDraft.trim()}
+              onClick={() => {
+                const draft = keyDraft.trim();
+                setAiBusy(true);
+                setAiMessage(null);
+                void state
+                  .saveAiKey(draft)
+                  .then(() => setKeyDraft(""))
+                  .catch((cause) => setAiMessage(errorMessage(cause)))
+                  .finally(() => setAiBusy(false));
+              }}
+            >
+              Save key
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!state.desktop || aiBusy || !state.aiKeyStatus?.configured}
+              onClick={() => {
+                setAiBusy(true);
+                setAiMessage(null);
+                void state
+                  .testAiConnection()
+                  .catch((cause) => setAiMessage(errorMessage(cause)))
+                  .finally(() => setAiBusy(false));
+              }}
+            >
+              Test connection
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-danger hover:bg-danger/10"
+              disabled={!state.desktop || aiBusy || !state.aiKeyStatus?.configured}
+              onClick={() => {
+                if (!window.confirm("Remove the stored API key from Keychain?")) return;
+                setAiBusy(true);
+                setAiMessage(null);
+                void state
+                  .deleteAiKey()
+                  .then(() => setKeyDraft(""))
+                  .catch((cause) => setAiMessage(errorMessage(cause)))
+                  .finally(() => setAiBusy(false));
+              }}
+            >
+              Delete key
+            </Button>
+          </div>
+        </div>
+        {aiMessage ? <p className="mt-2 text-[11px] text-danger break-words">{aiMessage}</p> : null}
+      </section>
+
       <section className="rounded-xl border border-border bg-panel p-4">
         <h2 className="text-sm font-medium">Default scan behavior</h2>
         <label className="mt-3 flex items-start gap-3 text-sm">
@@ -207,6 +310,7 @@ export function SettingsPage() {
         <p className="mt-2 text-muted">
           Dev Doctor reads the project you select and the toolchain commands it needs. Environment files are reduced to variable names.
           Values are not shown, logged, or saved. Scan history stays in the local data folder above. There is no account and no telemetry.
+          Optional AI calls reach <span className="font-mono">api.openai.com</span> only after you preview and confirm the context.
         </p>
       </section>
 

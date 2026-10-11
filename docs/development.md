@@ -89,6 +89,7 @@ monitoring/rules.rs -> evaluator.rs -> alert_manager.rs    (P2)
         |                                  |
         v                                  v
 monitoring/store.rs            SQLite monitor-history.sqlite (samples, alerts, compaction)
+ai/{credentials,provider,diagnosis}.rs   BYOK OpenAI; Keychain; allowlisted host only
 events: monitor-sample, monitor-alert
         |                                  |
         +------ monitor_recent ----------> React Monitoring view and System health card

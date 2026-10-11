@@ -1,3 +1,4 @@
+mod ai;
 mod artifacts;
 mod chrome;
 mod history;
@@ -14,6 +15,10 @@ use history::{data_dir, load, load_cleanups, save, save_cleanups};
 use probe::{execute_install, inspect_listen_port, FixExecutionResult, PortInspection};
 use security::ensure_allowed_url;
 use serde::Serialize;
+use ai::{
+    delete_api_key, diagnose, has_api_key, load_ai_settings, save_ai_settings, store_api_key, test_connection,
+    AiDiagnosisResponse, AiError, AiErrorCode, AiSettings, ApiKeyProvider,
+};
 use monitoring::{
     load_settings, save_settings, AlertHistoryQuery, MonitorAlert, MonitorHandle, MonitorSample, MonitorSettings,
     MonitorStatus, MonitorStorage, MonitorStorageStatus,
@@ -195,6 +200,68 @@ fn monitor_clear_history(monitor: State<'_, MonitorHandle>) -> Result<(), String
     monitor.clear_history()
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AiKeyStatus {
+    configured: bool,
+    provider: String,
+}
+
+#[tauri::command]
+fn ai_settings_load(app: tauri::AppHandle) -> Result<AiSettings, String> {
+    load_ai_settings(&app)
+}
+
+#[tauri::command]
+fn ai_settings_save(app: tauri::AppHandle, settings: AiSettings) -> Result<AiSettings, String> {
+    save_ai_settings(&app, settings)
+}
+
+#[tauri::command]
+fn ai_key_status(app: tauri::AppHandle) -> Result<AiKeyStatus, String> {
+    let settings = load_ai_settings(&app)?;
+    let provider = ApiKeyProvider::from_settings_id(&settings.provider)?;
+    Ok(AiKeyStatus {
+        configured: has_api_key(provider)?,
+        provider: settings.provider,
+    })
+}
+
+#[tauri::command]
+fn ai_key_save(app: tauri::AppHandle, api_key: String) -> Result<AiKeyStatus, String> {
+    let settings = load_ai_settings(&app)?;
+    let provider = ApiKeyProvider::from_settings_id(&settings.provider)?;
+    store_api_key(provider, &api_key)?;
+    ai_key_status(app)
+}
+
+#[tauri::command]
+fn ai_key_delete(app: tauri::AppHandle) -> Result<AiKeyStatus, String> {
+    let settings = load_ai_settings(&app)?;
+    let provider = ApiKeyProvider::from_settings_id(&settings.provider)?;
+    delete_api_key(provider)?;
+    ai_key_status(app)
+}
+
+fn ai_settings_err(message: String) -> AiError {
+    AiError {
+        code: AiErrorCode::ProviderMessage,
+        message,
+    }
+}
+
+#[tauri::command]
+fn ai_test_connection(app: tauri::AppHandle) -> Result<(), AiError> {
+    let settings = load_ai_settings(&app).map_err(ai_settings_err)?;
+    test_connection(&settings)
+}
+
+#[tauri::command]
+fn ai_diagnose(app: tauri::AppHandle, context_text: String) -> Result<AiDiagnosisResponse, AiError> {
+    let settings = load_ai_settings(&app).map_err(ai_settings_err)?;
+    diagnose(&settings, &context_text)
+}
+
 #[tauri::command]
 async fn scan_artifacts(app: tauri::AppHandle, project_path: String) -> Result<artifacts::ArtifactScan, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -268,7 +335,14 @@ pub fn run() {
             monitor_alert_mute_rule,
             monitor_alerts_query,
             monitor_storage_status,
-            monitor_clear_history
+            monitor_clear_history,
+            ai_settings_load,
+            ai_settings_save,
+            ai_key_status,
+            ai_key_save,
+            ai_key_delete,
+            ai_test_connection,
+            ai_diagnose
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

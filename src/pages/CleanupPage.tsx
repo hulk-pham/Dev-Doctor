@@ -150,6 +150,7 @@ export function CleanupPage() {
 }
 
 function CleanupRow({ item, checked, onToggle }: { item: ArtifactFinding; checked: boolean; onToggle: () => void }) {
+  const state = useAppState();
   const deletable = canDeleteArtifact(item);
   return (
     <li className="border-b border-border px-3 py-2 last:border-b-0">
@@ -163,6 +164,11 @@ function CleanupRow({ item, checked, onToggle }: { item: ArtifactFinding; checke
       <p className="mt-0.5 truncate text-[11px] text-muted">
         {item.safety} · {item.reason}
       </p>
+      {state.aiExplainAvailable ? (
+        <Button size="sm" variant="secondary" className="mt-1.5" onClick={() => state.openDiagnosisFromArtifact(item)}>
+          Explain with AI
+        </Button>
+      ) : null}
     </li>
   );
 }

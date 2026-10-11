@@ -13,9 +13,10 @@ Status file for the next product line after 0.3.0. Tick a box only when its chec
 | P0 | Audit and baseline | 3–5 days | done |
 | P1 | Resource monitor | 1–1.5 weeks | done → P2 |
 | P2 | Watchdog and alerts | 1–1.5 weeks | done → P3 |
-| P3 | Monitoring history and rules | 4–6 days | not started |
-| P4 | AI BYOK foundation | 1–1.5 weeks | not started |
-| P5 | AI diagnosis and safe fix planner | 1–1.5 weeks | not started |
+| P3 | Monitoring history and rules | 4–6 days | done |
+| P4 | AI BYOK foundation | 1–1.5 weeks | done (local) |
+| P4b | AI providers Wave 1 & 2 | 1 week | not started |
+| P5 | AI diagnosis and safe fix planner | 1–1.5 weeks | in progress |
 | P6 | Beta, packaging, release | 1–2 weeks | not started |
 
 Release markers:
@@ -204,18 +205,39 @@ src-tauri/src/ai/
   diagnosis.rs         request, validate response
 ```
 
-- [ ] P4.1 Pick one provider for the first adapter. Model name is a setting, not a constant.
-- [ ] P4.2 `credentials.rs`: store, read, delete the key in the macOS Keychain. Test that the key never appears in serialized state.
-- [ ] P4.3 Requests go from Rust only. The webview never sees the key.
-- [ ] P4.4 Add the provider host to an explicit network allowlist and document it in Privacy.
-- [ ] P4.5 `context-builder.ts`: default context is metrics and alert evidence. Paths, logs, and source are opt-in and shown before sending. `.env` values are never included.
-- [ ] P4.6 Context preview UI: the exact payload, editable removal of items, Send / Cancel.
-- [ ] P4.7 `response-schema.ts`: `summary`, `evidence`, `possibleCauses`, `confidence`, `recommendedSteps` (each with `risk`), `verification`. Reject output that does not match.
-- [ ] P4.8 Settings → **AI & Privacy**: provider, key (stored in Keychain), Test connection, Delete key, what is shared.
-- [ ] P4.9 Errors handled: no key, network, timeout, rate limit, unsupported model, invalid schema, context too large.
-- [ ] P4.10 Tests use a fake provider. No real project data in automated tests.
+- [x] P4.1 Pick one provider for the first adapter. Model name is a setting, not a constant. **OpenAI** (`gpt-4o-mini` default).
+- [x] P4.2 `credentials.rs`: store, read, delete the key in the macOS Keychain. Test that the key never appears in serialized state.
+- [x] P4.3 Requests go from Rust only. The webview never sees the key.
+- [x] P4.4 Add the provider host to an explicit network allowlist and document it in Privacy.
+- [x] P4.5 `context-builder.ts`: default context is metrics and alert evidence. Paths, logs, and source are opt-in and shown before sending. `.env` values are never included.
+- [x] P4.6 Context preview UI: the exact payload, editable removal of items, Send / Cancel.
+- [x] P4.7 `response-schema.ts`: `summary`, `evidence`, `possibleCauses`, `confidence`, `recommendedSteps` (each with `risk`), `verification`. Reject output that does not match.
+- [x] P4.8 Settings → **AI & Privacy**: provider, key (stored in Keychain), Test connection, Delete key, what is shared.
+- [x] P4.9 Errors handled: no key, network, timeout, rate limit, unsupported model, invalid schema, context too large.
+- [x] P4.10 Tests use a fake provider. No real project data in automated tests.
 
 Done when: the key can be set, tested, and deleted; requests go through Rust; nothing leaves the Mac beyond what the preview showed; every error in P4.9 has a message.
+
+---
+
+## P4b — AI provider expansion (Wave 1 & 2)
+
+Goal: BYOK beyond OpenAI while keeping the same diagnosis schema and Rust-only requests.
+
+**Wave 1**
+
+- [ ] P4b.1 **Anthropic** adapter (`api.anthropic.com`), Keychain slot, allowlist, default model (e.g. `claude-sonnet-4-20250514` or current mini).
+- [ ] P4b.2 **Google Gemini** adapter (`generativelanguage.googleapis.com`), key + model setting.
+- [ ] P4b.3 **Local Ollama** — OpenAI-compatible `http://127.0.0.1:11434/v1/chat/completions`; optional base URL in settings; key optional or placeholder.
+
+**Wave 2**
+
+- [ ] P4b.4 **OpenAI-compatible hosts:** Groq, Together, OpenRouter (shared client + per-host allowlist prefix).
+- [ ] P4b.5 **Azure OpenAI** — resource base URL + deployment name as model; `api-key` header variant.
+- [ ] P4b.6 Settings → provider picker, per-provider default model hints, Privacy lists all reachable hosts.
+- [ ] P4b.7 Tests: HTTP mocks or stub provider per adapter; no real keys in CI.
+
+Done when: user can switch provider in Settings, test connection, and run the same Diagnosis flow; each new host is allowlisted and documented.
 
 ---
 
@@ -223,16 +245,16 @@ Done when: the key can be set, tested, and deleted; requests go through Rust; no
 
 Goal: one flow from a problem to a checked fix.
 
-- [ ] P5.1 Reusable **Diagnosis panel** (inspector side, not a nav item): summary and evidence first, then causes and steps, then Run check again.
-- [ ] P5.2 Entry from an alert (metric series, process metadata, system state).
-- [ ] P5.3 Entry from a Cleanup row or a Diagnostics finding (what it means, impact of deleting, what to check first).
-- [ ] P5.4 Entry from a Processes row or port (process, port, and project relationship when the data supports it).
-- [ ] P5.5 Plan model: AI proposes steps; each step must map to an action the app already supports (delete artifact, stop process, allowlisted install, open docs, copy command). Unknown steps stay as text only.
-- [ ] P5.6 Validation reuses `security.rs`, the artifact catalog, and the PID denylist. A step that fails validation is shown as refused, with the reason.
-- [ ] P5.7 Confirm screen shows the exact path, PID, or command. The confirmed action cannot be changed by the AI afterwards.
-- [ ] P5.8 After a fix, re-collect and show before / after evidence.
-- [ ] P5.9 Treat logs and file contents as data, never as instructions. Test with a prompt-injection fixture.
-- [ ] P5.10 Out of scope here: arbitrary shell, automatic kill or delete, sending a whole project, a background agent.
+- [x] P5.1 Reusable **Diagnosis panel** (inspector side, not a nav item): summary and evidence first, then causes and steps, then Run check again.
+- [x] P5.2 Entry from an alert (metric series, process metadata, system state).
+- [x] P5.3 Entry from a Cleanup row or a Diagnostics finding (what it means, impact of deleting, what to check first).
+- [x] P5.4 Entry from a Processes row or port (process, port, and project relationship when the data supports it).
+- [x] P5.5 Plan model: AI proposes steps; each step must map to an action the app already supports (delete artifact, stop process, allowlisted install, open docs, copy command). Unknown steps stay as text only.
+- [x] P5.6 Validation reuses `security.rs`, the artifact catalog, and the PID denylist. A step that fails validation is shown as refused, with the reason.
+- [x] P5.7 Confirm screen shows the exact path, PID, or command. The confirmed action cannot be changed by the AI afterwards.
+- [x] P5.8 After a fix, re-collect and show before / after evidence.
+- [x] P5.9 Treat logs and file contents as data, never as instructions. Test with a prompt-injection fixture.
+- [x] P5.10 Out of scope here: arbitrary shell, automatic kill or delete, sending a whole project, a background agent.
 
 Done when: the user goes from an alert to a plan to a verified result inside Dev Doctor, and every executed step went through an existing guarded action.
 
@@ -269,7 +291,6 @@ Done when: no regression, stable long sessions, no system change without confirm
 
 ## Deferred (not in this roadmap)
 
-- More than one AI provider.
 - A free-form chat screen.
 - An agent that fixes the system on its own.
 - Cloud sync, accounts, web dashboard.
@@ -292,3 +313,5 @@ Add one dated line when a task is ticked or a decision changes.
 - 2026-10-11 13:26: P2 watchdog shipped (`rules`, `evaluator`, `alert_manager`, `scheduler`, `watchdog`, notifications). Monitoring **Alerts** tab + Settings rule toggles. JS 73, Rust 53. Next P3.
 - 2026-10-11: IA merge — removed Monitoring nav; **Processes | Trends | Alerts** on one screen (`MachineSegments`, `ProcessesPage`). Overview/notifications deep-link tabs. P1.10 wording updated.
 - 2026-10-11: P3 shipped. `monitoring/store.rs` + `monitor-history.sqlite`; compaction; Processes **Current health** + alert history filters; Settings retention + clear. Rust 57, JS 73, typecheck pass.
+- 2026-10-11: P4 BYOK foundation. OpenAI adapter + Keychain; `src/ai/*`; Settings **AI & Privacy**; alert **Explain with AI** preview dialog. Rust 62, JS 76, typecheck pass.
+- 2026-10-11: Roadmap **P4b** added (Wave 1 Anthropic/Gemini/Ollama + Wave 2 Groq/Together/OpenRouter/Azure). **P5** Diagnosis panel in inspector, fix planner, entry points from alerts/diagnostics/cleanup/processes.

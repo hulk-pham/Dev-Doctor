@@ -190,3 +190,31 @@ export function monitorStorageStatus(): Promise<import("../domain/types").Monito
 export function monitorClearHistory(): Promise<void> {
   return invoke("monitor_clear_history");
 }
+
+export function aiSettingsLoad(): Promise<import("../ai/types").AiSettings> {
+  return invoke("ai_settings_load");
+}
+
+export function aiSettingsSave(settings: import("../ai/types").AiSettings): Promise<import("../ai/types").AiSettings> {
+  return invoke("ai_settings_save", { settings });
+}
+
+export function aiKeyStatus(): Promise<import("../ai/types").AiKeyStatus> {
+  return invoke("ai_key_status");
+}
+
+export function aiKeySave(apiKey: string): Promise<import("../ai/types").AiKeyStatus> {
+  return invoke("ai_key_save", { apiKey });
+}
+
+export function aiKeyDelete(): Promise<import("../ai/types").AiKeyStatus> {
+  return invoke("ai_key_delete");
+}
+
+export function aiTestConnection(): Promise<void> {
+  return invoke("ai_test_connection");
+}
+
+export function aiDiagnose(contextText: string): Promise<import("../ai/types").AiDiagnosisResponse> {
+  return invoke("ai_diagnose", { contextText });
+}
