@@ -71,7 +71,7 @@ Rules return structured findings. One failed check does not cancel the rest of t
 
 ## Data flow
 
-Current (0.3.0):
+Current (0.4.0):
 
 ```text
 React pages --invoke--> lib.rs commands --> snapshot.rs, probe.rs, processes.rs, artifacts.rs

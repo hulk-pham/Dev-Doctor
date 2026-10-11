@@ -4,7 +4,7 @@ Dev Doctor is a local macOS app for a developer project folder. It measures recl
 
 ## Install
 
-Download **Dev Doctor_0.3.0_aarch64.dmg** (or later) from the [latest release](https://github.com/hulk-pham/Dev-Doctor/releases/latest). Open the disk image and drag Dev Doctor to Applications. The build has no Apple Developer ID. [CONTRIBUTING.md](../CONTRIBUTING.md) explains how to read the source and build it yourself.
+Download **Dev Doctor_0.4.0_aarch64.dmg** (or later) from the [latest release](https://github.com/hulk-pham/Dev-Doctor/releases/latest). Open the disk image and drag Dev Doctor to Applications. The build has no Apple Developer ID. [CONTRIBUTING.md](../CONTRIBUTING.md) explains how to read the source and build it yourself.
 
 The published build is not notarized. The first launch: right-click the app and choose **Open**. If macOS still calls the app damaged, follow [install troubleshooting](install.md).
 
